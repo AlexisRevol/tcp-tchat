@@ -74,8 +74,7 @@ void MainWindow::setupConnections() {
     // De la Logique vers l'UI
     connect(m_client, &Client::newMessageReceived, this, &MainWindow::onNewMessageReceived);
     connect(m_client, &Client::connectionStatusChanged, this, &MainWindow::onConnectionStatusChanged);
-    
-    // TODO: Connecter un signal pour mettre à jour la liste des utilisateurs
+    connect(m_client, &Client::userListUpdated, this, &MainWindow::onUserListUpdated);
 }
 
 void MainWindow::onSendButtonClicked() {
@@ -86,14 +85,62 @@ void MainWindow::onSendButtonClicked() {
     }
 }
 
-void MainWindow::onNewMessageReceived(const QString& message) {
-    chatArea->append(message);
+// Cette fonction doit maintenant recevoir le ParsedMessage complet pour être plus intelligente.
+// Modifions le signal/slot pour passer le ParsedMessage.
+// 1. Client.hpp:   signal newMessageReceived(const ParsedMessage& msg);
+// 2. Client.cpp:   emit newMessageReceived(parsed_msg);
+// 3. MainWindow.hpp: slot onNewMessageReceived(const ParsedMessage& msg);
+// 4. MainWindow.cpp: connect(m_client, &Client::newMessageReceived, this, &MainWindow::onNewMessageReceived);
+
+// Nouvelle implémentation du slot dans MainWindow.cpp
+void MainWindow::onNewMessageReceived(const ParsedMessage& msg) {
+    QString html;
+    
+    // Couleurs définies pour notre thème
+    const QString joinColor = "#2ecc71"; // Vert
+    const QString partColor = "#e74c3c"; // Rouge
+    const QString chatColor = "#ecf0f1"; // Blanc cassé
+    const QString pseudoColor = "#3498db"; // Bleu
+
+    switch(msg.command) {
+        case Command::JOIN:
+            if (!msg.params.empty()) {
+                html = QString("<p style='color:%1;'><i>--- %2 a rejoint le tchat. ---</i></p>")
+                           .arg(joinColor, QString::fromStdString(msg.params[0]));
+            }
+            break;
+        case Command::PART:
+             if (!msg.params.empty()) {
+                html = QString("<p style='color:%1;'><i>--- %2 a quitte le tchat. ---</i></p>")
+                           .arg(partColor, QString::fromStdString(msg.params[0]));
+            }
+            break;
+        case Command::MSG:
+            if (msg.params.size() >= 2) {
+                QString pseudo = QString::fromStdString(msg.params[0]);
+                QString message = QString::fromStdString(msg.params[1]).toHtmlEscaped(); // Échapper le HTML du message utilisateur
+                html = QString("<p><b style='color:%1;'>%2</b>: <span style='color:%3;'>%4</span></p>")
+                           .arg(pseudoColor, pseudo, chatColor, message);
+            }
+            break;
+        default:
+            break;
+    }
+
+    if (!html.isEmpty()) {
+        chatArea->append(html);
+    }
 }
 
 void MainWindow::onConnectionStatusChanged(bool isConnected, const QString& message) {
     chatArea->append(QString("--- %1 ---").arg(message));
     messageInput->setEnabled(isConnected);
     sendButton->setEnabled(isConnected);
+}
+
+void MainWindow::onUserListUpdated(const QStringList& users) {
+    userListWidget->clear();
+    userListWidget->addItems(users);
 }
 
 MainWindow::~MainWindow() {

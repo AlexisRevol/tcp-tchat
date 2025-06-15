@@ -41,8 +41,8 @@ private:
 
     void broadcastMessage(const std::string& message);
     void broadcastMessage(const std::string& message, socket_t senderSocket);
-    
-    // NOUVELLE méthode pour retirer un client
+
+    void broadcastUserList();
     void removeClient(socket_t clientSocket);
 
     void cleanup();

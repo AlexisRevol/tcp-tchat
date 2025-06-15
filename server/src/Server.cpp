@@ -92,7 +92,9 @@ void Server::handleClient(socket_t clientSocket) {
         std::lock_guard<std::mutex> lock(m_clientsMutex);
         m_clients[clientSocket] = pseudo;
     }
-    
+
+    broadcastUserList();
+
     std::cout << m_messageHandler.encode_join_message(pseudo) << std::endl;
     broadcastMessage(m_messageHandler.encode_join_message(pseudo));
 
@@ -106,6 +108,7 @@ void Server::handleClient(socket_t clientSocket) {
             removeClient(clientSocket);
             
             broadcastMessage(m_messageHandler.encode_leave_message(pseudo));
+            broadcastUserList();
             std::cout << m_messageHandler.encode_leave_message(pseudo) << std::endl;
             break;
         }
@@ -120,6 +123,17 @@ void Server::handleClient(socket_t clientSocket) {
     }
 }
 
+void Server::broadcastUserList() {
+    // std::lock_guard<std::mutex> lock(m_clientsMutex);
+    
+    std::vector<std::string> user_pseudos;
+    for (const auto& pair : m_clients) {
+        user_pseudos.push_back(pair.second);
+    }
+    
+    std::string message = m_messageHandler.encode_userlist_message(user_pseudos);
+    broadcastMessage(message); // On envoie à tout le monde
+}
 
 
 // Version pour diffuser à tout le monde

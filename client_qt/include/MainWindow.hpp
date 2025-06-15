@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <QStringListModel> 
 #include <QListWidget>
+#include "ParsedMessage.hpp"
 
 // Déclarations anticipées pour éviter les #include dans le .h
 class QTextEdit;
@@ -21,7 +22,8 @@ private slots:
     // Slots qui réagissent aux actions de l'utilisateur ou du client
     void onSendButtonClicked();
     void onConnectionStatusChanged(bool isConnected, const QString& message);
-    void onNewMessageReceived(const QString& message);
+    void onNewMessageReceived(const ParsedMessage& msg);
+    void onUserListUpdated(const QStringList& users);
 
 signals:
     // Signaux que la vue envoie à la logique

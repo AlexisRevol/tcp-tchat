@@ -15,6 +15,14 @@ std::string MessageHandler::encode_leave_message(const std::string& pseudo) {
     return "PART|" + pseudo;
 }
 
+std::string MessageHandler::encode_userlist_message(const std::vector<std::string>& users) {
+    std::string message = "USERLIST";
+    for (const auto& user : users) {
+        message += "|" + user;
+    }
+    return message;
+}
+
 // --- DÉCODAGE (pour le client) ---
 
 ParsedMessage MessageHandler::decode(const std::string& raw_message) {
@@ -36,6 +44,7 @@ ParsedMessage MessageHandler::decode(const std::string& raw_message) {
     if (segments[0] == "MSG") result.command = Command::MSG;
     else if (segments[0] == "JOIN") result.command = Command::JOIN;
     else if (segments[0] == "PART") result.command = Command::PART;
+    else if (segments[0] == "USERLIST") result.command = Command::USERLIST;
     else result.command = Command::UNKNOWN;
     
     // Copier les paramètres

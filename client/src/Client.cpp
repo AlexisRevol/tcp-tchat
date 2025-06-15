@@ -81,45 +81,46 @@ void Client::sendMsg(const std::string& message) {
 
 void Client::receiveMessages() {
     char buffer[4096];
+
+    // La boucle principale pour écouter le serveur
     while (m_isConnected) {
         memset(buffer, 0, 4096);
         int bytesReceived = recv(m_socket, buffer, 4096, 0);
 
         if (bytesReceived > 0) {
+            // 1. On reçoit des données brutes et on les décode
             std::string raw_msg(buffer, 0, bytesReceived);
             ParsedMessage parsed_msg = m_messageHandler.decode(raw_msg);
-            QString display_message;
 
-            switch(parsed_msg.command) {
-                case Command::MSG:
-                    if (parsed_msg.params.size() >= 2) {
-                        display_message = QString::fromStdString(parsed_msg.params[0] + ": " + parsed_msg.params[1]);
-                    }
-                    break;
-                case Command::JOIN:
-                    if (!parsed_msg.params.empty()) {
-                        display_message = QString("--- %1 a rejoint le tchat. ---").arg(QString::fromStdString(parsed_msg.params[0]));
-                    }
-                    break;
-                case Command::PART:
-                     if (!parsed_msg.params.empty()) {
-                        display_message = QString("--- %1 a quitte le tchat. ---").arg(QString::fromStdString(parsed_msg.params[0]));
-                    }
-                    break;
-                case Command::UNKNOWN:
-                    display_message = "Message du serveur non reconnu.";
-                    break;
+            // 2. On émet simplement l'objet ParsedMessage.
+            //    C'est maintenant la responsabilité de la MainWindow de l'interpréter.
+            //    Cela s'applique à TOUS les types de commandes (MSG, JOIN, PART...).
+            emit newMessageReceived(parsed_msg);
+            
+            // 3. On gère le cas spécial de la liste d'utilisateurs.
+            //    On pourrait aussi inclure ça dans le signal newMessageReceived,
+            //    mais le séparer est un peu plus propre car la donnée est différente.
+            if (parsed_msg.command == Command::USERLIST) {
+                QStringList userList;
+                // On ignore le premier paramètre qui est la commande elle-même.
+                // Note: Mon implémentation de decode était légèrement imparfaite,
+                // elle devrait peut-être ne pas inclure la commande dans les params.
+                // On va corriger ça en faisant une boucle sur parsed_msg.params.
+                for(const auto& param : parsed_msg.params) {
+                    userList.append(QString::fromStdString(param));
+                }
+                emit userListUpdated(userList);
             }
-            if (!display_message.isEmpty()) {
-                emit newMessageReceived(display_message);
-            }
+
         } else {
+            // Le serveur s'est déconnecté ou une erreur est survenue
             m_isConnected = false;
         }
     }
+
+    // Une fois sorti de la boucle, on notifie l'UI que la connexion est terminée.
     emit connectionStatusChanged(false, "Deconnecte du serveur.");
 }
-
 void Client::disconnectFromServer() {
     if (m_isConnected) {
         m_isConnected = false; 

@@ -42,7 +42,8 @@ public slots:
 signals:
     // Les signaux que notre logique enverra à l'interface
     void connectionStatusChanged(bool isConnected, const QString& message);
-    void newMessageReceived(const QString& message);
+    void newMessageReceived(const ParsedMessage& msg); 
+    void userListUpdated(const QStringList& users);
 
 private:
     void initializeWinsock(); 

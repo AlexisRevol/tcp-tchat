@@ -16,4 +16,5 @@ target_include_directories(tchat_client_lib PUBLIC
 target_link_libraries(client_qt PRIVATE
     Qt6::Widgets
     tchat_client_lib
+    tchat_common_lib
 )
