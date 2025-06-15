@@ -37,6 +37,7 @@ public:
 public slots:
     bool connectToServer(const std::string& ip, int port);
     void sendMsg(const std::string& message);
+    void disconnectFromServer();
     
 signals:
     // Les signaux que notre logique enverra à l'interface
@@ -44,10 +45,9 @@ signals:
     void newMessageReceived(const QString& message);
 
 private:
-    void initializeWinsock(); // Spécifique à Windows
+    void initializeWinsock(); 
     void receiveMessages(); 
     void cleanup();
-    void disconnectFromServer();
 
     socket_t m_socket;
     bool m_isConnected;

@@ -94,7 +94,7 @@ void Server::handleClient(socket_t clientSocket) {
     }
     
     std::cout << m_messageHandler.encode_join_message(pseudo) << std::endl;
-    broadcastMessage(m_messageHandler.encode_join_message(pseudo), clientSocket);
+    broadcastMessage(m_messageHandler.encode_join_message(pseudo));
 
     // Boucle pour recevoir les messages de tchat
     while (true) {
