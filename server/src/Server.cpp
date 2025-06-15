@@ -49,53 +49,71 @@ bool Server::start() {
 }
 
 void Server::acceptConnections() {
-    // Boucle principale pour accepter les nouveaux clients
     while (true) {
         sockaddr_in clientAddr;
         socklen_t clientAddrSize = sizeof(clientAddr);
         socket_t clientSocket = accept(m_listenSocket, (sockaddr*)&clientAddr, &clientAddrSize);
 
         if (clientSocket == INVALID_SOCKET) {
-            std::cerr << "Erreur: Accept a échoue." << std::endl;
-            continue; // On continue d'écouter
+            std::cerr << "Erreur: Accept a echoue." << std::endl;
+            continue;
         }
 
-        // Afficher l'IP du client qui se connecte
         char clientIp[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &clientAddr.sin_addr, clientIp, INET_ADDRSTRLEN);
         std::cout << "Nouveau client connecte depuis " << clientIp << std::endl;
 
-        // 6. Pour chaque client, créer un thread pour gérer la communication
-        m_clientThreads.emplace_back(&Server::handleClient, this, clientSocket);
-        // On pourrait utiliser .detach() si on ne veut pas gérer le join() plus tard.
-        // Pour un portfolio, il serait mieux de gérer une liste de clients actifs.
+        // Verrouiller le mutex avant de modifier la liste des clients
+        {
+            std::lock_guard<std::mutex> lock(m_clientsMutex);
+            m_clientSockets.push_back(clientSocket);
+        }
+
+        // Lancer un thread pour ce client
+        std::thread(&Server::handleClient, this, clientSocket).detach();
     }
 }
-
 
 void Server::handleClient(socket_t clientSocket) {
     char buffer[4096];
     while (true) {
-        // Vider le buffer
         memset(buffer, 0, 4096);
-
-        // Attendre de recevoir des données
         int bytesReceived = recv(clientSocket, buffer, 4096, 0);
+
         if (bytesReceived <= 0) {
-            // Erreur ou déconnexion du client
             std::cout << "Client deconnecte." << std::endl;
-            break;
+            removeClient(clientSocket);
+            break; // Terminer le thread
         }
+        
+        std::string message = std::string(buffer, 0, bytesReceived);
+        std::cout << "Recu: " << message << std::endl;
 
-        // Afficher le message reçu sur la console du serveur
-        std::cout << "Reçu: " << std::string(buffer, 0, bytesReceived) << std::endl;
-
-        // TODO: Envoyer ce message à TOUS les autres clients
-        // Pour l'instant, on fait juste un écho au client qui a envoyé
-        send(clientSocket, buffer, bytesReceived, 0);
+        // Diffuser le message
+        broadcastMessage(message, clientSocket);
     }
-    
-    // Fermer le socket du client à la fin de la communication
+}
+
+void Server::broadcastMessage(const std::string& message, socket_t senderSocket) {
+    std::lock_guard<std::mutex> lock(m_clientsMutex);
+
+    for (socket_t client : m_clientSockets) {
+        // Envoyer le message à tout le monde sauf à l'expéditeur
+        if (client != senderSocket) {
+            send(client, message.c_str(), static_cast<int>(message.length()), 0);
+        }
+    }
+}
+
+void Server::removeClient(socket_t clientSocket) {
+    std::lock_guard<std::mutex> lock(m_clientsMutex);
+
+    auto it = std::remove(m_clientSockets.begin(), m_clientSockets.end(), clientSocket);
+    if (it != m_clientSockets.end()) {
+        m_clientSockets.erase(it, m_clientSockets.end());
+    }
+
+    // Fermer le socket
 #ifdef _WIN32
     closesocket(clientSocket);
 #else

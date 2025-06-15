@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <thread>
+#include <mutex>
 
 // Gérer les différences de Sockets entre Windows et POSIX (Linux, macOS)
 #ifdef _WIN32
@@ -25,21 +26,26 @@
 
 class Server {
 public:
-    // Le constructeur prend le port en argument
     Server(int port);
-    // Le destructeur s'assurera de tout nettoyer proprement
     ~Server();
-
-    // Méthode pour démarrer le serveur
     bool start();
 
 private:
     void initializeWinsock(); // Spécifique à Windows
     void acceptConnections();
     void handleClient(socket_t clientSocket);
+
+    // NOUVELLE méthode pour diffuser les messages
+    void broadcastMessage(const std::string& message, socket_t senderSocket);
+    
+    // NOUVELLE méthode pour retirer un client
+    void removeClient(socket_t clientSocket);
+
     void cleanup();
 
     int m_port;
     socket_t m_listenSocket;
-    std::vector<std::thread> m_clientThreads;
+   
+    std::vector<socket_t> m_clientSockets; 
+    std::mutex m_clientsMutex;      
 };
