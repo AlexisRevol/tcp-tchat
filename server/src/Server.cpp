@@ -63,56 +63,81 @@ void Server::acceptConnections() {
         inet_ntop(AF_INET, &clientAddr.sin_addr, clientIp, INET_ADDRSTRLEN);
         std::cout << "Nouveau client connecte depuis " << clientIp << std::endl;
 
-        // Verrouiller le mutex avant de modifier la liste des clients
-        {
-            std::lock_guard<std::mutex> lock(m_clientsMutex);
-            m_clientSockets.push_back(clientSocket);
-        }
-
         // Lancer un thread pour ce client
         std::thread(&Server::handleClient, this, clientSocket).detach();
     }
 }
 
 void Server::handleClient(socket_t clientSocket) {
+    // Recevoir le pseudo du client en premier message
     char buffer[4096];
+    memset(buffer, 0, 4096);
+    int bytesReceived = recv(clientSocket, buffer, 4096, 0);
+    
+    if (bytesReceived <= 0) {
+        std::cout << "Client deconnecte avant de fournir un pseudo." << std::endl;
+#ifdef _WIN32
+        closesocket(clientSocket);
+#else
+        close(clientSocket);
+#endif
+        return;
+    }
+
+    std::string pseudo = std::string(buffer, 0, bytesReceived);
+    
+    // Stocker le client et son pseudo, et informer les autres
+    {
+        std::lock_guard<std::mutex> lock(m_clientsMutex);
+        m_clients[clientSocket] = pseudo;
+    }
+    std::cout << pseudo << " a rejoint le tchat." << std::endl;
+    broadcastMessage(pseudo + " a rejoint le tchat.", clientSocket);
+
+    // Boucle pour recevoir les messages de tchat
     while (true) {
         memset(buffer, 0, 4096);
-        int bytesReceived = recv(clientSocket, buffer, 4096, 0);
+        bytesReceived = recv(clientSocket, buffer, 4096, 0);
 
         if (bytesReceived <= 0) {
-            std::cout << "Client deconnecte." << std::endl;
+            // Le client s'est déconnecté
             removeClient(clientSocket);
-            break; // Terminer le thread
+            broadcastMessage(pseudo + " a quitte le tchat.");
+            std::cout << pseudo << " a quitte le tchat." << std::endl;
+            break; // Sortir de la boucle pour terminer le thread
         }
         
         std::string message = std::string(buffer, 0, bytesReceived);
-        std::cout << "Recu: " << message << std::endl;
+        std::cout << "Recu de " << pseudo << ": " << message << std::endl;
 
-        // Diffuser le message
-        broadcastMessage(message, clientSocket);
+        // Diffuser le message formaté
+        broadcastMessage(pseudo + ": " + message, clientSocket);
     }
 }
 
+
+
+// Version pour diffuser à tout le monde
+void Server::broadcastMessage(const std::string& message) {
+    broadcastMessage(message, INVALID_SOCKET); 
+}
+
+// Version pour diffuser à tout le monde sauf à l'expéditeur
 void Server::broadcastMessage(const std::string& message, socket_t senderSocket) {
     std::lock_guard<std::mutex> lock(m_clientsMutex);
-
-    for (socket_t client : m_clientSockets) {
-        // Envoyer le message à tout le monde sauf à l'expéditeur
-        if (client != senderSocket) {
-            send(client, message.c_str(), static_cast<int>(message.length()), 0);
+    for (const auto& pair : m_clients) {
+        if (pair.first != senderSocket) {
+            send(pair.first, message.c_str(), static_cast<int>(message.length()), 0);
         }
     }
 }
 
 void Server::removeClient(socket_t clientSocket) {
     std::lock_guard<std::mutex> lock(m_clientsMutex);
-
-    auto it = std::remove(m_clientSockets.begin(), m_clientSockets.end(), clientSocket);
-    if (it != m_clientSockets.end()) {
-        m_clientSockets.erase(it, m_clientSockets.end());
-    }
-
+    
+    // Retirer de la map
+    m_clients.erase(clientSocket);
+    
     // Fermer le socket
 #ifdef _WIN32
     closesocket(clientSocket);
@@ -120,7 +145,6 @@ void Server::removeClient(socket_t clientSocket) {
     close(clientSocket);
 #endif
 }
-
 
 void Server::initializeWinsock() {
 #ifdef _WIN32

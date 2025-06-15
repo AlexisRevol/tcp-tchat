@@ -29,6 +29,7 @@ public:
     void sendMsg(const std::string& message);
 
     void run();
+    void start();
 
 private:
     void initializeWinsock(); // Spécifique à Windows

@@ -4,6 +4,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <map>
 
 // Gérer les différences de Sockets entre Windows et POSIX (Linux, macOS)
 #ifdef _WIN32
@@ -35,7 +36,7 @@ private:
     void acceptConnections();
     void handleClient(socket_t clientSocket);
 
-    // NOUVELLE méthode pour diffuser les messages
+    void broadcastMessage(const std::string& message);
     void broadcastMessage(const std::string& message, socket_t senderSocket);
     
     // NOUVELLE méthode pour retirer un client
@@ -46,6 +47,7 @@ private:
     int m_port;
     socket_t m_listenSocket;
    
-    std::vector<socket_t> m_clientSockets; 
+    //std::vector<socket_t> m_clientSockets; 
+    std::map<socket_t, std::string> m_clients;
     std::mutex m_clientsMutex;      
 };

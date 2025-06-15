@@ -45,13 +45,36 @@ bool Client::connectToServer(const std::string& ip, int port) {
     return true;
 }
 
+void Client::start() {
+    const std::string SERVER_IP = "127.0.0.1";
+    const int SERVER_PORT = 8080;
+
+    if (connectToServer(SERVER_IP, SERVER_PORT)) {
+        run();
+    } else {
+        std::cerr << "Impossible de se connecter au serveur." << std::endl;
+    }
+}
+
 void Client::run() {
-    // Boucle principale pour lire les entrées de l'utilisateur et les envoyer
+    // Demander et envoyer le pseudo
+    std::string pseudo;
+    std::cout << "Entrez votre pseudo: ";
+    std::getline(std::cin, pseudo);
+    if (pseudo.empty()) {
+        pseudo = "Anonyme";
+    }
+    sendMsg(pseudo);
+    std::cout << "--- Tchat commence. Tapez vos messages. ---" << std::endl;
+
+    // Boucle principale pour envoyer les messages
     std::string line;
     while (m_isConnected) {
         std::getline(std::cin, line);
-        if (!line.empty()) {
+        if (!line.empty() && m_isConnected) {
             sendMsg(line);
+        } else if (!m_isConnected) {
+            break; 
         }
     }
 }
