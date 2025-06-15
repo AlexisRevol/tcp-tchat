@@ -1,14 +1,19 @@
+// client/src/main_client.cpp
 #include <iostream>
+#include "Client.hpp"
 
 int main() {
-    std::cout << "Lancement du client TCP-Tchat..." << std::endl;
+    const std::string SERVER_IP = "127.0.0.1";
+    const int SERVER_PORT = 8080;
 
-    // TODO:
-    // 1. Créer un socket (socket())
-    // 2. Se connecter au serveur (connect())
-    // 3. Créer un thread pour écouter les messages du serveur
-    // 4. Dans la boucle principale, lire l'entrée de l'utilisateur et l'envoyer au serveur
+    Client client;
 
-    std::cout << "Client deconnecte." << std::endl;
+    if (client.connectToServer(SERVER_IP, SERVER_PORT)) {
+        // Boucle du client pour envoyer des messages
+        client.run();
+    } else {
+        std::cerr << "Impossible de se connecter au serveur." << std::endl;
+    }
+
     return 0;
 }

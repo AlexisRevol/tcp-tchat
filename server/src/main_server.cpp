@@ -1,15 +1,17 @@
 #include <iostream>
+#include "Server.hpp"
 
 int main() {
-    std::cout << "Lancement du serveur TCP-Tchat..." << std::endl;
+    const int PORT = 8080;
 
-    // TODO:
-    // 1. Créer un socket (socket())
-    // 2. Lier le socket à une adresse IP et un port (bind())
-    // 3. Mettre le socket en écoute (listen())
-    // 4. Accepter les nouvelles connexions dans une boucle (accept())
-    // 5. Pour chaque client, créer un thread pour gérer la communication
+    Server server(PORT);
 
-    std::cout << "Serveur arrete." << std::endl;
+    if (server.start()) {
+        std::cout << "Serveur démarré avec succès. Appuyez sur Entrée pour arrêter." << std::endl;
+        std::cin.get();
+    } else {
+        std::cerr << "Impossible de démarrer le serveur." << std::endl;
+    }
+
     return 0;
 }
