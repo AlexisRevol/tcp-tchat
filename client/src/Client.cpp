@@ -70,7 +70,7 @@ void Client::receiveMessages() {
 
         if (bytesReceived > 0) {
             // Afficher le message reçu
-            std::cout << "Reçu > " << std::string(buffer, 0, bytesReceived) << std::endl;
+            std::cout << "Recu > " << std::string(buffer, 0, bytesReceived) << std::endl;
         } else {
             std::cout << "Deconnecte du serveur." << std::endl;
             m_isConnected = false;
