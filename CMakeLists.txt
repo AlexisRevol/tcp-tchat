@@ -11,6 +11,9 @@ add_subdirectory(common)
 add_subdirectory(server)
 add_subdirectory(client)
 
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
+add_subdirectory(client_qt)
+
 if(BUILD_TESTING)
     # Intégration de Catch2
     include(FetchContent)

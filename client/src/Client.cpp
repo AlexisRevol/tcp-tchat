@@ -3,7 +3,8 @@
 #include <string>
 #include <cstring>
 
-Client::Client() : m_socket(INVALID_SOCKET), m_isConnected(false) {
+Client::Client(QObject *parent) 
+    : QObject(parent), m_socket(INVALID_SOCKET), m_isConnected(false) {
     initializeWinsock();
 }
 
@@ -14,34 +15,26 @@ Client::~Client() {
 bool Client::connectToServer(const std::string& ip, int port) {
     m_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (m_socket == INVALID_SOCKET) {
-        std::cerr << "Erreur: Impossible de creer le socket." << std::endl;
+        emit connectionStatusChanged(false, "Erreur: Impossible de creer le socket.");
         return false;
     }
-    std::cout << "Socket client cree." << std::endl;
 
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(port);
-    
-    // Convertir l'adresse IP de texte à binaire
-    if (inet_pton(AF_INET, ip.c_str(), &serverAddr.sin_addr) <= 0) {
-        std::cerr << "Erreur: Adresse IP invalide." << std::endl;
-        cleanup();
-        return false;
-    }
+    inet_pton(AF_INET, ip.c_str(), &serverAddr.sin_addr);
 
-    // Tenter la connexion
-    if (connect(m_socket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-        std::cerr << "Erreur: Connexion au serveur echouee." << std::endl;
+    if (::connect(m_socket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+        emit connectionStatusChanged(false, "Erreur: Connexion au serveur echouee.");
         cleanup();
         return false;
     }
 
     m_isConnected = true;
-    std::cout << "Connecte au serveur !" << std::endl;
-    
-    // Lancer un thread pour écouter les messages du serveur
     m_receiveThread = std::thread(&Client::receiveMessages, this);
+    
+    // On envoie le signal de succès !
+    emit connectionStatusChanged(true, "Connecte au serveur !");
 
     return true;
 }
@@ -95,32 +88,42 @@ void Client::receiveMessages() {
         if (bytesReceived > 0) {
             std::string raw_msg(buffer, 0, bytesReceived);
             ParsedMessage parsed_msg = m_messageHandler.decode(raw_msg);
+            QString display_message;
 
             switch(parsed_msg.command) {
                 case Command::MSG:
-                    // On vérifie qu'on a bien les 2 paramètres (pseudo, contenu)
                     if (parsed_msg.params.size() >= 2) {
-                        std::cout << parsed_msg.params[0] << ": " << parsed_msg.params[1] << std::endl;
+                        display_message = QString::fromStdString(parsed_msg.params[0] + ": " + parsed_msg.params[1]);
                     }
                     break;
                 case Command::JOIN:
                     if (!parsed_msg.params.empty()) {
-                        std::cout << "--- " << parsed_msg.params[0] << " a rejoint le tchat. ---" << std::endl;
+                        display_message = QString("--- %1 a rejoint le tchat. ---").arg(QString::fromStdString(parsed_msg.params[0]));
                     }
                     break;
                 case Command::PART:
                      if (!parsed_msg.params.empty()) {
-                        std::cout << "--- " << parsed_msg.params[0] << " a quitte le tchat. ---" << std::endl;
+                        display_message = QString("--- %1 a quitte le tchat. ---").arg(QString::fromStdString(parsed_msg.params[0]));
                     }
                     break;
                 case Command::UNKNOWN:
-                    std::cout << "Message du serveur non reconnu: " << raw_msg << std::endl;
+                    display_message = "Message du serveur non reconnu.";
                     break;
             }
+            if (!display_message.isEmpty()) {
+                emit newMessageReceived(display_message);
+            }
         } else {
-            std::cout << "Deconnecte du serveur." << std::endl;
             m_isConnected = false;
         }
+    }
+    emit connectionStatusChanged(false, "Deconnecte du serveur.");
+}
+
+void Client::disconnectFromServer() {
+    if (m_isConnected) {
+        m_isConnected = false; 
+        cleanup(); 
     }
 }
 

@@ -1,6 +1,7 @@
 // client/include/Client.hpp
 #pragma once
 
+#include <QObject>
 #include <string>
 #include <thread>
 
@@ -23,21 +24,30 @@
     const int INVALID_SOCKET = -1;
 #endif
 
-class Client {
-public:
-    Client();
-    ~Client();
+class Client : public QObject {
+    Q_OBJECT
 
-    bool connectToServer(const std::string& ip, int port);
-    void sendMsg(const std::string& message);
+public:
+    explicit Client(QObject *parent = nullptr);
+    ~Client();
 
     void run();
     void start();
+
+public slots:
+    bool connectToServer(const std::string& ip, int port);
+    void sendMsg(const std::string& message);
+    
+signals:
+    // Les signaux que notre logique enverra à l'interface
+    void connectionStatusChanged(bool isConnected, const QString& message);
+    void newMessageReceived(const QString& message);
 
 private:
     void initializeWinsock(); // Spécifique à Windows
     void receiveMessages(); 
     void cleanup();
+    void disconnectFromServer();
 
     socket_t m_socket;
     bool m_isConnected;
