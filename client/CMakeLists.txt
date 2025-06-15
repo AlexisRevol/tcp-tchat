@@ -7,13 +7,14 @@ add_library(tchat_client_lib STATIC
 target_include_directories(tchat_client_lib PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
+target_link_libraries(tchat_client_lib PUBLIC tchat_common_lib)
 
 # On indique à la bibliothèque ses dépendances.
 if(WIN32)
-    target_link_libraries(tchat_client_lib PRIVATE ws2_32)
+    target_link_libraries(tchat_client_lib PUBLIC ws2_32)
 endif()
 if(UNIX AND NOT APPLE)
-    target_link_libraries(tchat_client_lib PRIVATE pthread)
+    target_link_libraries(tchat_client_lib PUBLIC pthread)
 endif()
 
 
@@ -23,4 +24,4 @@ add_executable(client
 )
 
 # On lie notre exécutable "client" à notre bibliothèque "tchat_client_lib".
-target_link_libraries(client PRIVATE tchat_client_lib)
+target_link_libraries(client PUBLIC tchat_client_lib)

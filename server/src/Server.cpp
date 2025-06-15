@@ -91,8 +91,8 @@ void Server::handleClient(socket_t clientSocket) {
         std::lock_guard<std::mutex> lock(m_clientsMutex);
         m_clients[clientSocket] = pseudo;
     }
-    std::cout << pseudo << " a rejoint le tchat." << std::endl;
-    broadcastMessage(pseudo + " a rejoint le tchat.", clientSocket);
+    std::cout << m_messageHandler.format_join_message(pseudo) << std::endl;
+    broadcastMessage(m_messageHandler.format_join_message(pseudo), clientSocket);
 
     // Boucle pour recevoir les messages de tchat
     while (true) {
@@ -102,16 +102,18 @@ void Server::handleClient(socket_t clientSocket) {
         if (bytesReceived <= 0) {
             // Le client s'est déconnecté
             removeClient(clientSocket);
-            broadcastMessage(pseudo + " a quitte le tchat.");
-            std::cout << pseudo << " a quitte le tchat." << std::endl;
-            break; // Sortir de la boucle pour terminer le thread
+            broadcastMessage(m_messageHandler.format_leave_message(pseudo));
+            std::cout << m_messageHandler.format_leave_message(pseudo) << std::endl;
+            break;
         }
         
         std::string message = std::string(buffer, 0, bytesReceived);
-        std::cout << "Recu de " << pseudo << ": " << message << std::endl;
+
+        std::string formattedMessage = m_messageHandler.format_chat_message(pseudo, message);
+        std::cout << "Recu: " << formattedMessage << std::endl;
 
         // Diffuser le message formaté
-        broadcastMessage(pseudo + ": " + message, clientSocket);
+        broadcastMessage(formattedMessage, clientSocket);
     }
 }
 

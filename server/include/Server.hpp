@@ -6,6 +6,8 @@
 #include <mutex>
 #include <map>
 
+#include "MessageHandler.hpp" 
+
 // Gérer les différences de Sockets entre Windows et POSIX (Linux, macOS)
 #ifdef _WIN32
     #include <winsock2.h>
@@ -47,7 +49,8 @@ private:
     int m_port;
     socket_t m_listenSocket;
    
-    //std::vector<socket_t> m_clientSockets; 
     std::map<socket_t, std::string> m_clients;
-    std::mutex m_clientsMutex;      
+    std::mutex m_clientsMutex;
+    
+    MessageHandler m_messageHandler; 
 };

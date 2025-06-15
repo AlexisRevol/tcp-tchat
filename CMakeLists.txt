@@ -1,11 +1,25 @@
-cmake_minimum_required(VERSION 3.10)
-project(TCP-Tchat VERSION 1.0 LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.12)
+project(TCP-Tchat LANGUAGES CXX)
 
-# Standard C++ 17
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Sous-dossiers à traiter
+option(BUILD_TESTING "Build the tests" ON)
+
+add_subdirectory(common)
 add_subdirectory(server)
 add_subdirectory(client)
+
+if(BUILD_TESTING)
+    # Intégration de Catch2
+    include(FetchContent)
+    FetchContent_Declare(
+      Catch2
+      GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+      GIT_TAG v3.6.0 
+    )
+    FetchContent_MakeAvailable(Catch2)
+
+    add_subdirectory(test)
+endif()
