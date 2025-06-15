@@ -4,6 +4,9 @@
 #include <string>
 #include <thread>
 
+#include "ParsedMessage.hpp"
+#include "MessageHandler.hpp"
+
 // On réutilise les mêmes définitions de sockets que pour le serveur
 // pour la compatibilité Windows / POSIX.
 #ifdef _WIN32
@@ -39,4 +42,6 @@ private:
     socket_t m_socket;
     bool m_isConnected;
     std::thread m_receiveThread;
+
+    MessageHandler m_messageHandler; 
 };

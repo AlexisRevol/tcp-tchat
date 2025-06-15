@@ -92,8 +92,30 @@ void Client::receiveMessages() {
         int bytesReceived = recv(m_socket, buffer, 4096, 0);
 
         if (bytesReceived > 0) {
-            // Afficher le message reçu
-            std::cout << "Recu > " << std::string(buffer, 0, bytesReceived) << std::endl;
+            std::string raw_msg(buffer, 0, bytesReceived);
+            ParsedMessage parsed_msg = m_messageHandler.decode(raw_msg);
+
+            switch(parsed_msg.command) {
+                case Command::MSG:
+                    // On vérifie qu'on a bien les 2 paramètres (pseudo, contenu)
+                    if (parsed_msg.params.size() >= 2) {
+                        std::cout << parsed_msg.params[0] << ": " << parsed_msg.params[1] << std::endl;
+                    }
+                    break;
+                case Command::JOIN:
+                    if (!parsed_msg.params.empty()) {
+                        std::cout << "--- " << parsed_msg.params[0] << " a rejoint le tchat. ---" << std::endl;
+                    }
+                    break;
+                case Command::PART:
+                     if (!parsed_msg.params.empty()) {
+                        std::cout << "--- " << parsed_msg.params[0] << " a quitte le tchat. ---" << std::endl;
+                    }
+                    break;
+                case Command::UNKNOWN:
+                    std::cout << "Message du serveur non reconnu: " << raw_msg << std::endl;
+                    break;
+            }
         } else {
             std::cout << "Deconnecte du serveur." << std::endl;
             m_isConnected = false;

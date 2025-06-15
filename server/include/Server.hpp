@@ -7,6 +7,7 @@
 #include <map>
 
 #include "MessageHandler.hpp" 
+#include "ParsedMessage.hpp"
 
 // Gérer les différences de Sockets entre Windows et POSIX (Linux, macOS)
 #ifdef _WIN32

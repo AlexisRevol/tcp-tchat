@@ -91,8 +91,9 @@ void Server::handleClient(socket_t clientSocket) {
         std::lock_guard<std::mutex> lock(m_clientsMutex);
         m_clients[clientSocket] = pseudo;
     }
-    std::cout << m_messageHandler.format_join_message(pseudo) << std::endl;
-    broadcastMessage(m_messageHandler.format_join_message(pseudo), clientSocket);
+    
+    std::cout << m_messageHandler.encode_join_message(pseudo) << std::endl;
+    broadcastMessage(m_messageHandler.encode_join_message(pseudo), clientSocket);
 
     // Boucle pour recevoir les messages de tchat
     while (true) {
@@ -102,14 +103,15 @@ void Server::handleClient(socket_t clientSocket) {
         if (bytesReceived <= 0) {
             // Le client s'est déconnecté
             removeClient(clientSocket);
-            broadcastMessage(m_messageHandler.format_leave_message(pseudo));
-            std::cout << m_messageHandler.format_leave_message(pseudo) << std::endl;
+            
+            broadcastMessage(m_messageHandler.encode_leave_message(pseudo));
+            std::cout << m_messageHandler.encode_leave_message(pseudo) << std::endl;
             break;
         }
         
         std::string message = std::string(buffer, 0, bytesReceived);
-
-        std::string formattedMessage = m_messageHandler.format_chat_message(pseudo, message);
+        
+        std::string formattedMessage = m_messageHandler.encode_chat_message(pseudo, message);
         std::cout << "Recu: " << formattedMessage << std::endl;
 
         // Diffuser le message formaté
