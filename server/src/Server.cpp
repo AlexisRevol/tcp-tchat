@@ -135,15 +135,18 @@ void Server::broadcastUserList() {
     broadcastMessage(message); // On envoie à tout le monde
 }
 
-
 // Version pour diffuser à tout le monde
 void Server::broadcastMessage(const std::string& message) {
-    broadcastMessage(message, INVALID_SOCKET); 
+    _broadcastMessage_unsafe(message, INVALID_SOCKET);
 }
 
 // Version pour diffuser à tout le monde sauf à l'expéditeur
 void Server::broadcastMessage(const std::string& message, socket_t senderSocket) {
     std::lock_guard<std::mutex> lock(m_clientsMutex);
+    _broadcastMessage_unsafe(message, senderSocket);
+}
+
+void Server::_broadcastMessage_unsafe(const std::string& message, socket_t senderSocket) {
     for (const auto& pair : m_clients) {
         if (pair.first != senderSocket) {
             send(pair.first, message.c_str(), static_cast<int>(message.length()), 0);

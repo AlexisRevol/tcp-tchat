@@ -41,6 +41,7 @@ private:
 
     void broadcastMessage(const std::string& message);
     void broadcastMessage(const std::string& message, socket_t senderSocket);
+    void _broadcastMessage_unsafe(const std::string& message, socket_t senderSocket);
 
     void broadcastUserList();
     void removeClient(socket_t clientSocket);
