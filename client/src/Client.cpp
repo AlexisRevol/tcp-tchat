@@ -1,6 +1,7 @@
 #include "Client.hpp"
 #include <iostream>
 #include <string>
+#include <cstring>
 
 Client::Client() : m_socket(INVALID_SOCKET), m_isConnected(false) {
     initializeWinsock();

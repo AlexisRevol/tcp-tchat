@@ -1,6 +1,7 @@
 #include "Server.hpp"
 #include <iostream>
 #include <string>
+#include <cstring>
 
 Server::Server(int port) : m_port(port), m_listenSocket(INVALID_SOCKET) {
 }
