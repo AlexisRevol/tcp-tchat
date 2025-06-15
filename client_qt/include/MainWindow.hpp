@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QStringListModel> 
+#include <QListWidget>
 
 // Déclarations anticipées pour éviter les #include dans le .h
 class QTextEdit;
@@ -27,12 +29,15 @@ signals:
     void connectToServerRequested(const std::string& ip, int port);
 
 private:
-    // Les widgets de notre interface
-    QTextEdit* chatArea;
-    QLineEdit* messageInput;
-    QPushButton* sendButton;
+    void setupUI(); // Nouvelle fonction pour organiser la création de l'UI
+    void setupConnections(); // Nouvelle fonction pour organiser les signaux/slots
+
+    // Les widgets de l'interface
+    QTextEdit* chatArea = nullptr;
+    QLineEdit* messageInput = nullptr;
+    QPushButton* sendButton = nullptr;
+    QListWidget* userListWidget = nullptr;
     
-    // Un pointeur vers notre logique client
-    Client* m_client;
-    QThread* clientThread;
+    Client* m_client = nullptr;
+    QThread* clientThread = nullptr;
 };

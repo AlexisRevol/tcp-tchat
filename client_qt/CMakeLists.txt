@@ -6,6 +6,7 @@ add_executable(client_qt
     src/main_qt.cpp
     src/MainWindow.cpp
     "${CMAKE_CURRENT_SOURCE_DIR}/include/MainWindow.hpp" 
+    resources.qrc 
 )
 
 target_include_directories(tchat_client_lib PUBLIC
