@@ -42,8 +42,6 @@ jobs:
       if: steps.cache-qt.outputs.cache-hit != 'true'
       with:
         version: ${{ matrix.qt-version }}
-        # --- LA CORRECTION EST ICI ---
-        modules: 'qtbase'
 
     # ÉTAPE 4 : Configurer CMake
     - name: Configure CMake
