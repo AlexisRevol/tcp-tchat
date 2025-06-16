@@ -1,11 +1,10 @@
-// client/include/Client.hpp
 #pragma once
 
 #include <QObject>
 #include <QStringList>
 #include <string>
 #include <thread>
-#include <atomic> // Important pour la gestion thread-safe du statut de connexion
+#include <atomic>
 
 #include "ParsedMessage.hpp"
 #include "MessageHandler.hpp"

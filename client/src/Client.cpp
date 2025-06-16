@@ -1,6 +1,5 @@
-// client/src/Client.cpp
 #include "Client.hpp"
-#include <iostream> // Conservé pour d'éventuels messages de debug (qDebug serait mieux)
+#include <iostream>
 #include <string>
 #include <cstring>
 #include <vector>
@@ -8,7 +7,7 @@
 Client::Client(QObject *parent)
     : QObject(parent), m_socket(INVALID_SOCKET), m_isConnected(false) {
     initializeWinsock();
-    // On enregistre le type ParsedMessage pour qu'il puisse être utilisé dans les signaux/slots
+    // Enregistrer le type ParsedMessage pour qu'il puisse être utilisé dans les signaux/slots
     qRegisterMetaType<ParsedMessage>("ParsedMessage");
 }
 
@@ -41,8 +40,6 @@ void Client::connectToServer(const std::string& ip, int port) {
     }
 
     m_isConnected.store(true);
-    // Le thread de réception est détaché de la fonction actuelle et vivra sa propre vie.
-    // Nous le joindrons proprement dans cleanup().
     m_receiveThread = std::thread(&Client::receiveMessages, this);
 
     emit connectionStatusChanged(true, "Connecté");
@@ -58,17 +55,14 @@ void Client::receiveMessages() {
     char buffer[4096];
     
     // Boucle de réception tant que la connexion est active.
-    // .load() est utilisé pour lire la valeur atomique de manière sécurisée.
+    // .load() lis la valeur atomique de manière sécurisée.
     while (m_isConnected.load()) {
         memset(buffer, 0, sizeof(buffer));
         int bytesReceived = recv(m_socket, buffer, sizeof(buffer), 0);
 
         if (bytesReceived > 0) {
-            // Un ou plusieurs messages peuvent être reçus en un seul appel recv.
-            // Il faut les traiter tous.
             std::string received_data(buffer, bytesReceived);
-            // Ici, nous supposons un protocole simple où les messages sont séparés par \n
-            // Une meilleure solution utiliserait un préfixe de longueur.
+
             size_t start = 0;
             size_t end;
             while ((end = received_data.find('\n', start)) != std::string::npos) {
@@ -80,14 +74,11 @@ void Client::receiveMessages() {
             }
             
         } else {
-            // recv a retourné 0 (déconnexion propre) ou -1 (erreur).
-            // La connexion est rompue.
             m_isConnected.store(false);
         }
     }
 
     // Une fois sorti de la boucle, on notifie l'UI.
-    // On s'assure de ne l'envoyer que si la déconnexion n'a pas déjà été signalée.
     emit connectionStatusChanged(false, "Déconnecté du serveur");
 }
 
@@ -96,8 +87,6 @@ void Client::processRawMessage(const std::string& raw_message) {
 
     ParsedMessage parsed_msg = m_messageHandler.decode(raw_message);
 
-    // Le cas de la liste d'utilisateurs est traité séparément car il
-    // correspond à un signal et un type de données distincts.
     if (parsed_msg.command == Command::USERLIST) {
         QStringList userList;
         for(const auto& param : parsed_msg.params) {
@@ -105,9 +94,6 @@ void Client::processRawMessage(const std::string& raw_message) {
         }
         emit userListUpdated(userList);
     } else {
-        // Pour toutes les autres commandes (MSG, JOIN, PART, NICK, etc.),
-        // on émet un signal générique. C'est à la MainWindow de décider comment
-        // afficher l'information.
         emit newMessageReceived(parsed_msg);
     }
 }
@@ -119,8 +105,6 @@ void Client::disconnectFromServer() {
     }
     m_isConnected.store(false);
     
-    // Fermer le socket est un moyen de débloquer l'appel `recv` dans `receiveMessages`
-    // s'il est en attente, ce qui permet au thread de se terminer proprement.
 #ifdef _WIN32
     closesocket(m_socket);
 #else
@@ -128,7 +112,6 @@ void Client::disconnectFromServer() {
 #endif
     m_socket = INVALID_SOCKET;
 
-    // Le reste du nettoyage sera fait par le destructeur ou un appel explicite à cleanup
 }
 
 
@@ -136,14 +119,12 @@ void Client::initializeWinsock() {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        // Dans une application réelle, gérer cette erreur plus gracieusement.
         exit(1);
     }
 #endif
 }
 
 void Client::cleanup() {
-    // Si le thread est "joinable", cela signifie qu'il a été démarré et n'a pas encore été joint.
     if (m_receiveThread.joinable()) {
         m_receiveThread.join(); // Attend que le thread se termine.
     }
