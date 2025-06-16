@@ -1,148 +1,153 @@
+// client/src/Client.cpp
 #include "Client.hpp"
-#include <iostream>
+#include <iostream> // Conservé pour d'éventuels messages de debug (qDebug serait mieux)
 #include <string>
 #include <cstring>
+#include <vector>
 
-Client::Client(QObject *parent) 
+Client::Client(QObject *parent)
     : QObject(parent), m_socket(INVALID_SOCKET), m_isConnected(false) {
     initializeWinsock();
+    // On enregistre le type ParsedMessage pour qu'il puisse être utilisé dans les signaux/slots
+    qRegisterMetaType<ParsedMessage>("ParsedMessage");
 }
 
 Client::~Client() {
+    disconnectFromServer();
     cleanup();
 }
 
-bool Client::connectToServer(const std::string& ip, int port) {
+void Client::connectToServer(const std::string& ip, int port) {
+    // Si déjà connecté, ne rien faire
+    if (m_isConnected.load()) {
+        return;
+    }
+
     m_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (m_socket == INVALID_SOCKET) {
-        emit connectionStatusChanged(false, "Erreur: Impossible de creer le socket.");
-        return false;
+        emit connectionStatusChanged(false, "Erreur : Impossible de créer le socket.");
+        return;
     }
 
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(port);
+    serverAddr.sin_port = htons(static_cast<u_short>(port));
     inet_pton(AF_INET, ip.c_str(), &serverAddr.sin_addr);
 
-    if (::connect(m_socket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-        emit connectionStatusChanged(false, "Erreur: Connexion au serveur echouee.");
-        cleanup();
-        return false;
+    if (::connect(m_socket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
+        emit connectionStatusChanged(false, "Erreur : Connexion au serveur échouée.");
+        cleanup(); // Nettoie le socket qui a été créé
+        return;
     }
 
-    m_isConnected = true;
+    m_isConnected.store(true);
+    // Le thread de réception est détaché de la fonction actuelle et vivra sa propre vie.
+    // Nous le joindrons proprement dans cleanup().
     m_receiveThread = std::thread(&Client::receiveMessages, this);
-    
-    // On envoie le signal de succès !
-    emit connectionStatusChanged(true, "Connecte au serveur !");
 
-    return true;
-}
-
-void Client::start() {
-    const std::string SERVER_IP = "127.0.0.1";
-    const int SERVER_PORT = 8080;
-
-    if (connectToServer(SERVER_IP, SERVER_PORT)) {
-        run();
-    } else {
-        std::cerr << "Impossible de se connecter au serveur." << std::endl;
-    }
-}
-
-void Client::run() {
-    // Demander et envoyer le pseudo
-    std::string pseudo;
-    std::cout << "Entrez votre pseudo: ";
-    std::getline(std::cin, pseudo);
-    if (pseudo.empty()) {
-        pseudo = "Anonyme";
-    }
-    sendMsg(pseudo);
-    std::cout << "--- Tchat commence. Tapez vos messages. ---" << std::endl;
-
-    // Boucle principale pour envoyer les messages
-    std::string line;
-    while (m_isConnected) {
-        std::getline(std::cin, line);
-        if (!line.empty() && m_isConnected) {
-            sendMsg(line);
-        } else if (!m_isConnected) {
-            break; 
-        }
-    }
+    emit connectionStatusChanged(true, "Connecté");
 }
 
 void Client::sendMsg(const std::string& message) {
-    if (m_isConnected) {
+    if (m_isConnected.load() && m_socket != INVALID_SOCKET) {
         send(m_socket, message.c_str(), static_cast<int>(message.length()), 0);
     }
 }
 
 void Client::receiveMessages() {
     char buffer[4096];
-
-    // La boucle principale pour écouter le serveur
-    while (m_isConnected) {
-        memset(buffer, 0, 4096);
-        int bytesReceived = recv(m_socket, buffer, 4096, 0);
+    
+    // Boucle de réception tant que la connexion est active.
+    // .load() est utilisé pour lire la valeur atomique de manière sécurisée.
+    while (m_isConnected.load()) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytesReceived = recv(m_socket, buffer, sizeof(buffer), 0);
 
         if (bytesReceived > 0) {
-            // 1. On reçoit des données brutes et on les décode
-            std::string raw_msg(buffer, 0, bytesReceived);
-            ParsedMessage parsed_msg = m_messageHandler.decode(raw_msg);
-
-            // 2. On émet simplement l'objet ParsedMessage.
-            //    C'est maintenant la responsabilité de la MainWindow de l'interpréter.
-            //    Cela s'applique à TOUS les types de commandes (MSG, JOIN, PART...).
-            emit newMessageReceived(parsed_msg);
-            
-            // 3. On gère le cas spécial de la liste d'utilisateurs.
-            //    On pourrait aussi inclure ça dans le signal newMessageReceived,
-            //    mais le séparer est un peu plus propre car la donnée est différente.
-            if (parsed_msg.command == Command::USERLIST) {
-                QStringList userList;
-                // On ignore le premier paramètre qui est la commande elle-même.
-                // Note: Mon implémentation de decode était légèrement imparfaite,
-                // elle devrait peut-être ne pas inclure la commande dans les params.
-                // On va corriger ça en faisant une boucle sur parsed_msg.params.
-                for(const auto& param : parsed_msg.params) {
-                    userList.append(QString::fromStdString(param));
-                }
-                emit userListUpdated(userList);
+            // Un ou plusieurs messages peuvent être reçus en un seul appel recv.
+            // Il faut les traiter tous.
+            std::string received_data(buffer, bytesReceived);
+            // Ici, nous supposons un protocole simple où les messages sont séparés par \n
+            // Une meilleure solution utiliserait un préfixe de longueur.
+            size_t start = 0;
+            size_t end;
+            while ((end = received_data.find('\n', start)) != std::string::npos) {
+                processRawMessage(received_data.substr(start, end - start));
+                start = end + 1;
             }
-
+            if (start < received_data.length()) {
+                processRawMessage(received_data.substr(start));
+            }
+            
         } else {
-            // Le serveur s'est déconnecté ou une erreur est survenue
-            m_isConnected = false;
+            // recv a retourné 0 (déconnexion propre) ou -1 (erreur).
+            // La connexion est rompue.
+            m_isConnected.store(false);
         }
     }
 
-    // Une fois sorti de la boucle, on notifie l'UI que la connexion est terminée.
-    emit connectionStatusChanged(false, "Deconnecte du serveur.");
+    // Une fois sorti de la boucle, on notifie l'UI.
+    // On s'assure de ne l'envoyer que si la déconnexion n'a pas déjà été signalée.
+    emit connectionStatusChanged(false, "Déconnecté du serveur");
 }
-void Client::disconnectFromServer() {
-    if (m_isConnected) {
-        m_isConnected = false; 
-        cleanup(); 
+
+void Client::processRawMessage(const std::string& raw_message) {
+    if (raw_message.empty()) return;
+
+    ParsedMessage parsed_msg = m_messageHandler.decode(raw_message);
+
+    // Le cas de la liste d'utilisateurs est traité séparément car il
+    // correspond à un signal et un type de données distincts.
+    if (parsed_msg.command == Command::USERLIST) {
+        QStringList userList;
+        for(const auto& param : parsed_msg.params) {
+            userList.append(QString::fromStdString(param));
+        }
+        emit userListUpdated(userList);
+    } else {
+        // Pour toutes les autres commandes (MSG, JOIN, PART, NICK, etc.),
+        // on émet un signal générique. C'est à la MainWindow de décider comment
+        // afficher l'information.
+        emit newMessageReceived(parsed_msg);
     }
 }
+
+
+void Client::disconnectFromServer() {
+    if (!m_isConnected.load()) {
+        return;
+    }
+    m_isConnected.store(false);
+    
+    // Fermer le socket est un moyen de débloquer l'appel `recv` dans `receiveMessages`
+    // s'il est en attente, ce qui permet au thread de se terminer proprement.
+#ifdef _WIN32
+    closesocket(m_socket);
+#else
+    close(m_socket);
+#endif
+    m_socket = INVALID_SOCKET;
+
+    // Le reste du nettoyage sera fait par le destructeur ou un appel explicite à cleanup
+}
+
 
 void Client::initializeWinsock() {
 #ifdef _WIN32
     WSADATA wsaData;
-    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (result != 0) {
-        std::cerr << "WSAStartup a echoue: " << result << std::endl;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        // Dans une application réelle, gérer cette erreur plus gracieusement.
         exit(1);
     }
 #endif
 }
 
 void Client::cleanup() {
+    // Si le thread est "joinable", cela signifie qu'il a été démarré et n'a pas encore été joint.
     if (m_receiveThread.joinable()) {
-        m_receiveThread.join();
+        m_receiveThread.join(); // Attend que le thread se termine.
     }
+
     if (m_socket != INVALID_SOCKET) {
 #ifdef _WIN32
         closesocket(m_socket);
@@ -151,6 +156,7 @@ void Client::cleanup() {
 #endif
         m_socket = INVALID_SOCKET;
     }
+
 #ifdef _WIN32
     WSACleanup();
 #endif
