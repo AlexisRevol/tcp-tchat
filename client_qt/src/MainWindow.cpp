@@ -257,8 +257,6 @@ void MainWindow::addMessage(const ParsedMessage& msg) {
 
 void MainWindow::onConnectionStatusChanged(bool isConnected, const QString& message) {
     if (isConnected) {
-        // Hypothèse simple pour définir le pseudo local.
-        // Dans une vraie application, le serveur devrait confirmer le pseudo.
         if (m_myNickname.isEmpty()) m_myNickname = "Vous";
         updateConnectionStatus(true, "Connecté");
     } else {

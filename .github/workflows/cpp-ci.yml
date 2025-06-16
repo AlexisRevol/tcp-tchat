@@ -9,7 +9,6 @@ on:
 jobs:
   build-and-test:
     strategy:
-      # Exécuter les builds en parallèle pour chaque OS
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         qt-version: ['6.7.1']
@@ -20,14 +19,14 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # Installer les dépendances spécifiques à l'OS
+    # ÉTAPE 1 : Installer les dépendances spécifiques à l'OS
     - name: Install Linux dependencies
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential ninja-build libgl1-mesa-dev libxcb-xinerama0 libxkbcommon-x11-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
 
-    # Mettre en cache les fichiers Qt pour accélérer les builds futurs
+    # ÉTAPE 2 : Mettre en cache les fichiers Qt pour accélérer les builds futurs
     - name: Cache Qt
       id: cache-qt
       uses: actions/cache@v4
@@ -37,15 +36,16 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-qt-${{ matrix.qt-version }}-
 
-    # Installer Qt (seulement si le cache n'a pas été trouvé)
+    # ÉTAPE 3 : Installer Qt (seulement si le cache n'a pas été trouvé)
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       if: steps.cache-qt.outputs.cache-hit != 'true'
       with:
         version: ${{ matrix.qt-version }}
-        modules: 'qtwidgets'
+        # --- LA CORRECTION EST ICI ---
+        modules: 'qtbase'
 
-    # Configurer CMake
+    # ÉTAPE 4 : Configurer CMake
     - name: Configure CMake
       run: >
         cmake -B build
@@ -54,10 +54,10 @@ jobs:
         -D BUILD_TESTING=ON
         -G Ninja
 
-    # Compiler le projet
+    # ÉTAPE 5 : Compiler le projet
     - name: Build project
       run: cmake --build build --parallel
 
-    # Lancer les tests
+    # ÉTAPE 6 : Lancer les tests
     - name: Run tests
       run: ctest --test-dir build --output-on-failure
