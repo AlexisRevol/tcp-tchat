@@ -6,7 +6,6 @@
 #include "Client.hpp"
 #include "ParsedMessage.hpp" 
 
-// Variable globale atomique pour contrôler la boucle principale du main.
 std::atomic<bool> isAppRunning = true;
 
 /**
@@ -14,7 +13,7 @@ std::atomic<bool> isAppRunning = true;
 
  */
 int main(int argc, char *argv[]) {
-    // Il faut une instance de QApplication (ou QCoreApplication) pour que les signaux/slots fonctionnent,
+    // Il faut une instance de QApplication pour que les signaux/slots fonctionnent,
     // même sans interface graphique.
     QCoreApplication app(argc, argv);
 
