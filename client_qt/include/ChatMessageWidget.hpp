@@ -10,13 +10,13 @@ class ChatMessageWidget : public QWidget {
     Q_OBJECT
 
 public:
-    explicit ChatMessageWidget(const QString& author, const QString& text, const QString& timestamp, QWidget* parent = nullptr);
+    explicit ChatMessageWidget(const QString& author, const QString& text, const QString& timestamp, bool isOwnMessage = false, QWidget* parent = nullptr);
 
     // Pour les messages système (connexion/déconnexion)
     explicit ChatMessageWidget(const QString& systemMessage, QColor color, QWidget* parent = nullptr);
 
 private:
-    void setupUi(const QString& author, const QString& text, const QString& timestamp);
+    void setupUi(const QString& author, const QString& text, const QString& timestamp, bool isOwnMessage);
     void setupSystemUi(const QString& systemMessage, QColor color);
 
     QLabel* authorLabel = nullptr;
