@@ -1,9 +1,8 @@
 # Tchat TCP en C++
 
-Tchat client-serveur multi-threadé développé en C++17, utilisant les sockets TCP pour la communication, CMake pour la compilation, et une interface graphique moderne avec Qt6.
-
-
 ![Démo de Job Tracker](https://raw.githubusercontent.com/AlexisRevol/tcp-tchat/main/.github/assets/demo_tchat.gif)
+
+Tchat client-serveur multi-threadé développé en C++17, utilisant les sockets TCP pour la communication, CMake pour la compilation, et une interface graphique avec Qt6.
 
 ### Badges & Qualité
 
