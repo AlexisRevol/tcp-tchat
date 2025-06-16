@@ -38,3 +38,7 @@ add_executable(client
 
 # On lie notre exécutable "client" à notre bibliothèque "tchat_client_lib".
 target_link_libraries(client PUBLIC tchat_client_lib)
+
+if(WIN32)
+    target_link_libraries(client PRIVATE ws2_32)
+endif()

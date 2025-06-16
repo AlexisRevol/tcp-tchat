@@ -5,7 +5,9 @@ set(CMAKE_AUTOUIC ON)
 add_executable(client_qt
     src/main_qt.cpp
     src/MainWindow.cpp
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/MainWindow.hpp" 
+    src/ChatMessageWidget.cpp
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/MainWindow.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/ChatMessageWidget.hpp"
     resources.qrc 
 )
 

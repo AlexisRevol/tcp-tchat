@@ -3,18 +3,16 @@
 #include <string>
 #include <cstring>
 
-Server::Server(int port) : m_port(port), m_listenSocket(INVALID_SOCKET) {
+Server::Server(int port) : m_port(port), m_listenSocket(INVALID_SOCKET), m_isRunning(false) {
 }
 
 Server::~Server() {
-    cleanup();
+    stop();
 }
 
 bool Server::start() {
-    // Initialiser Winsock (uniquement pour Windows)
     initializeWinsock();
 
-    // Créer le socket d'écoute
     m_listenSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (m_listenSocket == INVALID_SOCKET) {
         std::cerr << "Erreur: Impossible de creer le socket." << std::endl;
@@ -22,7 +20,6 @@ bool Server::start() {
     }
     std::cout << "Socket cree." << std::endl;
 
-    // Lier le socket à une adresse IP et un port
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(m_port);
@@ -35,36 +32,49 @@ bool Server::start() {
     }
     std::cout << "Socket lie au port " << m_port << "." << std::endl;
 
-    // Mettre le socket en écoute
-    if (listen(m_listenSocket, 5) < 0) { // 5 = taille de la file d'attente des connexions
+    if (listen(m_listenSocket, 5) < 0) {
         std::cerr << "Erreur: Listen a echoue." << std::endl;
         cleanup();
         return false;
     }
     std::cout << "Serveur en ecoute..." << std::endl;
 
-    // Accepter les connexions dans un thread dédié pour ne pas bloquer le main
-    acceptConnections();
+    m_isRunning = true;
+    m_acceptThread = std::thread(&Server::acceptConnections, this);
 
     return true;
 }
 
+void Server::stop() {
+    if (!m_isRunning.exchange(false)) {
+        return; // Déjà arrêté
+    }
+    std::cout << "Arret du serveur..." << std::endl;
+
+    // Fermer le socket d'écoute pour débloquer la fonction accept()
+    cleanup();
+    
+    // Attendre la fin du thread d'acceptation
+    if (m_acceptThread.joinable()) {
+        m_acceptThread.join();
+    }
+    std::cout << "Thread d'acceptation termine." << std::endl;
+}
+
+
 void Server::acceptConnections() {
-    while (true) {
-        sockaddr_in clientAddr;
-        socklen_t clientAddrSize = sizeof(clientAddr);
-        socket_t clientSocket = accept(m_listenSocket, (sockaddr*)&clientAddr, &clientAddrSize);
+    while (m_isRunning) {
+        socket_t clientSocket = accept(m_listenSocket, nullptr, nullptr);
 
         if (clientSocket == INVALID_SOCKET) {
-            std::cerr << "Erreur: Accept a echoue." << std::endl;
-            continue;
+            if (m_isRunning) {
+                // Cette erreur est normale si le serveur s'arrête pendant qu'il attend sur accept()
+                std::cout << "accept() a echoue ou a ete interrompu, arret de la boucle." << std::endl;
+            }
+            break; // Sortir de la boucle
         }
 
-        char clientIp[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &clientAddr.sin_addr, clientIp, INET_ADDRSTRLEN);
-        std::cout << "Nouveau client connecte depuis " << clientIp << std::endl;
-
-        // Lancer un thread pour ce client
+        std::cout << "Nouveau client connecte." << std::endl;
         std::thread(&Server::handleClient, this, clientSocket).detach();
     }
 }

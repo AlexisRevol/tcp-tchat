@@ -1,15 +1,18 @@
+// include/MainWindow.hpp
 #pragma once
 
 #include <QMainWindow>
-#include <QStringListModel> 
-#include <QListWidget>
+#include <QStringListModel>
 #include "ParsedMessage.hpp"
 
-// Déclarations anticipées pour éviter les #include dans le .h
-class QTextEdit;
+// Déclarations anticipées
+class QListView; // MODIFIÉ
 class QLineEdit;
 class QPushButton;
 class Client;
+class QStandardItemModel; // NOUVEAU
+class QLabel; // NOUVEAU
+class QListWidget;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -19,27 +22,30 @@ public:
     ~MainWindow();
 
 private slots:
-    // Slots qui réagissent aux actions de l'utilisateur ou du client
     void onSendButtonClicked();
     void onConnectionStatusChanged(bool isConnected, const QString& message);
     void onNewMessageReceived(const ParsedMessage& msg);
     void onUserListUpdated(const QStringList& users);
 
 signals:
-    // Signaux que la vue envoie à la logique
     void sendMessageRequested(const std::string& message);
     void connectToServerRequested(const std::string& ip, int port);
 
 private:
-    void setupUI(); // Nouvelle fonction pour organiser la création de l'UI
-    void setupConnections(); // Nouvelle fonction pour organiser les signaux/slots
+    void setupUI();
+    void setupConnections();
+    void addMessage(const ParsedMessage& msg); // NOUVELLE fonction helper
 
-    // Les widgets de l'interface
-    QTextEdit* chatArea = nullptr;
+    // --- Widgets de l'interface ---
+    QListView* chatView = nullptr; // MODIFIÉ: Remplacé QTextEdit par QListView
+    QStandardItemModel* chatModel = nullptr; // NOUVEAU: Le modèle pour notre chat
+
     QLineEdit* messageInput = nullptr;
     QPushButton* sendButton = nullptr;
+
     QListWidget* userListWidget = nullptr;
-    
+    QLabel* userCountLabel = nullptr; // NOUVEAU: Pour "En ligne - X"
+
     Client* m_client = nullptr;
     QThread* clientThread = nullptr;
 };

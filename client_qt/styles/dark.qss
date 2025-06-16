@@ -1,42 +1,99 @@
-/* Simple Dark Theme pour Qt */
+/* Modern Dark Theme pour Qt */
 QWidget {
     background-color: #2b2b2b;
     color: #f0f0f0;
-    border: 0px;
+    border: none;
+    font-family: "Segoe UI", "Helvetica Neue", "Arial", sans-serif; /* Police plus moderne */
 }
 
 QMainWindow {
     background-color: #2b2b2b;
 }
 
-QTextEdit, QLineEdit, QListWidget {
+/* Zone de chat (la liste des messages) */
+#chatView {
     background-color: #3c3f41;
-    color: #f0f0f0;
-    border: 1px solid #555;
+    border: none;
+}
+
+/* Liste des utilisateurs */
+#userListWidget {
+    background-color: #2b2b2b; /* Même fond que la fenêtre */
+    border: none;
+    font-size: 11pt;
+    padding-left: 5px;
+}
+
+#userListWidget::item {
+    padding: 6px;
+    color: #b0b3b8;
+}
+
+#userListWidget::item:hover {
+    background-color: #3a3b3c;
     border-radius: 4px;
-    padding: 4px;
 }
 
-QPushButton {
-    background-color: #555;
+/* Compteur d'utilisateurs */
+#userCountLabel {
+    font-size: 10pt;
+    font-weight: bold;
+    color: #b0b3b8;
+    padding: 8px;
+    border-bottom: 1px solid #3a3b3c;
+}
+
+/* Champ de saisie */
+#messageInput {
+    background-color: #40444b;
     color: #f0f0f0;
-    border: 1px solid #666;
-    padding: 5px 10px;
-    border-radius: 4px;
+    border: 1px solid #222;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 11pt;
+}
+#messageInput:focus {
+    border: 1px solid #0078d4;
 }
 
-QPushButton:hover {
-    background-color: #666;
+/* Bouton d'envoi */
+QPushButton#sendButton {
+    background-color: #5865f2; /* Couleur "Discord" */
+    color: #ffffff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: bold;
 }
 
-QPushButton:pressed {
-    background-color: #444;
+QPushButton#sendButton:hover {
+    background-color: #4f5bda;
 }
 
+QPushButton#sendButton:pressed {
+    background-color: #4752c4;
+}
+
+/* Splitter */
 QSplitter::handle {
-    background-color: #555;
+    background-color: #3c3f41;
+}
+QSplitter::handle:hover {
+    background-color: #4f5bda;
 }
 
-QSplitter::handle:hover {
-    background-color: #666;
+/* Scrollbars */
+QScrollBar:vertical {
+    border: none;
+    background: #3c3f41;
+    width: 8px;
+    margin: 0px 0px 0px 0px;
+}
+QScrollBar::handle:vertical {
+    background: #555;
+    min-height: 20px;
+    border-radius: 4px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
 }

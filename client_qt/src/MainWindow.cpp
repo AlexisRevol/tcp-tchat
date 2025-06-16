@@ -1,15 +1,21 @@
+// src/MainWindow.cpp
 #include "MainWindow.hpp"
-#include <QTextEdit>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
-#include <QHBoxLayout> // Pour les layouts horizontaux
+#include <QHBoxLayout>
 #include <QWidget>
-#include <QListWidget> // Pour la liste des utilisateurs
-#include <QSplitter> // Pour redimensionner les zones
+#include <QListWidget>
+#include <QSplitter>
+#include <QStandardItemModel> // NOUVEAU
+#include <QListView>           // NOUVEAU
+#include <QLabel>              // NOUVEAU
+#include <QDateTime>           // NOUVEAU
 
-#include "Client.hpp" 
+#include "Client.hpp"
+#include "ChatMessageWidget.hpp" // NOUVEAU
 #include <QThread>
+#include <QScrollBar>          // NOUVEAU
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     clientThread = new QThread(this);
@@ -17,123 +23,161 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     m_client->moveToThread(clientThread);
 
-    setupUI(); 
+    setupUI();
     setupConnections();
-
 
     clientThread->start();
     emit connectToServerRequested("127.0.0.1", 8080);
 }
 
-
 void MainWindow::setupUI() {
-    setWindowTitle("TCP Tchat");
-    
-    // --- Création des widgets ---
-    chatArea = new QTextEdit(this);
-    chatArea->setReadOnly(true);
+    setWindowTitle("Modern Tchat");
+    setObjectName("mainWindow"); // Pour le QSS
 
+    // --- Création des widgets ---
+    chatView = new QListView(this);
+    chatView->setEditTriggers(QAbstractItemView::NoEditTriggers); // Pas d'édition
+    chatView->setSelectionMode(QAbstractItemView::NoSelection);   // Pas de sélection
+    chatView->setSpacing(5); // Espace entre les messages
+    chatView->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel); // Scrolling fluide
+    chatView->setObjectName("chatView");
+    
+    chatModel = new QStandardItemModel(this);
+    chatView->setModel(chatModel);
+
+    // --- Zone de la liste des utilisateurs ---
     userListWidget = new QListWidget(this);
+    userListWidget->setObjectName("userListWidget");
+    userCountLabel = new QLabel("En ligne - 0", this);
+    userCountLabel->setObjectName("userCountLabel");
+    userCountLabel->setAlignment(Qt::AlignCenter);
+
+    QVBoxLayout* userListLayout = new QVBoxLayout();
+    userListLayout->addWidget(userCountLabel);
+    userListLayout->addWidget(userListWidget);
+    QWidget* userListContainer = new QWidget();
+    userListContainer->setLayout(userListLayout);
+    userListContainer->setMinimumWidth(150); // Largeur minimale
 
     messageInput = new QLineEdit(this);
-    messageInput->setPlaceholderText("Ecrivez votre message ici...");
+    messageInput->setPlaceholderText("Écrivez votre message ici...");
+    messageInput->setObjectName("messageInput");
 
     sendButton = new QPushButton("Envoyer", this);
+    sendButton->setObjectName("sendButton");
+    // On pourrait ajouter une icone ici plus tard
 
     // --- Mise en page ---
-    // Zone de saisie et bouton
     QHBoxLayout* inputLayout = new QHBoxLayout();
     inputLayout->addWidget(messageInput);
     inputLayout->addWidget(sendButton);
 
-    // Zone de tchat principale
     QVBoxLayout* chatLayout = new QVBoxLayout();
-    chatLayout->addWidget(chatArea);
+    chatLayout->addWidget(chatView);
     chatLayout->addLayout(inputLayout);
     QWidget* chatWidget = new QWidget();
     chatWidget->setLayout(chatLayout);
+    chatWidget->setObjectName("chatWidget");
 
-    // On utilise un QSplitter pour pouvoir redimensionner les zones
     QSplitter* mainSplitter = new QSplitter(Qt::Horizontal, this);
-    mainSplitter->addWidget(userListWidget);
+    mainSplitter->addWidget(userListContainer); // Le container avec le label
     mainSplitter->addWidget(chatWidget);
-    mainSplitter->setStretchFactor(1, 3); // La zone de tchat est 3x plus grande
+    mainSplitter->setStretchFactor(0, 1); // Zone user 1 part
+    mainSplitter->setStretchFactor(1, 4); // Zone chat 4 parts
+    mainSplitter->handle(1)->setFixedWidth(1); // Poignée de splitter fine
 
     setCentralWidget(mainSplitter);
 }
 
 void MainWindow::setupConnections() {
-    // ... (les connexions de signaux/slots que vous aviez déjà) ...
-    // De l'UI vers la Logique
+    // ... (les connexions existantes restent les mêmes) ...
     connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
-    connect(messageInput, &QLineEdit::returnPressed, this, &MainWindow::onSendButtonClicked); // UX: Envoyer avec la touche Entrée
+    connect(messageInput, &QLineEdit::returnPressed, this, &MainWindow::onSendButtonClicked);
 
     connect(this, &MainWindow::sendMessageRequested, m_client, &Client::sendMsg);
     connect(this, &MainWindow::connectToServerRequested, m_client, &Client::connectToServer);
     
-    // De la Logique vers l'UI
     connect(m_client, &Client::newMessageReceived, this, &MainWindow::onNewMessageReceived);
     connect(m_client, &Client::connectionStatusChanged, this, &MainWindow::onConnectionStatusChanged);
     connect(m_client, &Client::userListUpdated, this, &MainWindow::onUserListUpdated);
 }
 
 void MainWindow::onSendButtonClicked() {
-    QString message = messageInput->text();
+    QString message = messageInput->text().trimmed(); // .trimmed() pour enlever les espaces
     if (!message.isEmpty()) {
         emit sendMessageRequested(message.toStdString());
         messageInput->clear();
     }
 }
 
-// Cette fonction doit maintenant recevoir le ParsedMessage complet pour être plus intelligente.
-// Modifions le signal/slot pour passer le ParsedMessage.
-// 1. Client.hpp:   signal newMessageReceived(const ParsedMessage& msg);
-// 2. Client.cpp:   emit newMessageReceived(parsed_msg);
-// 3. MainWindow.hpp: slot onNewMessageReceived(const ParsedMessage& msg);
-// 4. MainWindow.cpp: connect(m_client, &Client::newMessageReceived, this, &MainWindow::onNewMessageReceived);
-
-// Nouvelle implémentation du slot dans MainWindow.cpp
+// Slot qui reçoit le message du client et l'ajoute à la vue
 void MainWindow::onNewMessageReceived(const ParsedMessage& msg) {
-    QString html;
+    addMessage(msg);
+}
+
+// Nouvelle fonction pour ajouter un message à la vue
+void MainWindow::addMessage(const ParsedMessage& msg) {
+    QWidget* messageWidget = nullptr;
     
-    // Couleurs définies pour notre thème
-    const QString joinColor = "#2ecc71"; // Vert
-    const QString partColor = "#e74c3c"; // Rouge
-    const QString chatColor = "#ecf0f1"; // Blanc cassé
-    const QString pseudoColor = "#3498db"; // Bleu
+    // Couleurs définies pour le thème
+    const QColor joinColor = QColor("#2ecc71"); // Vert
+    const QColor partColor = QColor("#e74c3c"); // Rouge
+    const QColor statusColor = QColor("#95a5a6"); // Gris pour le status
 
     switch(msg.command) {
         case Command::JOIN:
             if (!msg.params.empty()) {
-                html = QString("<p style='color:%1;'><i>--- %2 a rejoint le tchat. ---</i></p>")
-                           .arg(joinColor, QString::fromStdString(msg.params[0]));
+                QString systemText = QString("%1 a rejoint le tchat.").arg(QString::fromStdString(msg.params[0]));
+                messageWidget = new ChatMessageWidget(systemText, joinColor);
             }
             break;
         case Command::PART:
              if (!msg.params.empty()) {
-                html = QString("<p style='color:%1;'><i>--- %2 a quitte le tchat. ---</i></p>")
-                           .arg(partColor, QString::fromStdString(msg.params[0]));
+                QString systemText = QString("%1 a quitté le tchat.").arg(QString::fromStdString(msg.params[0]));
+                messageWidget = new ChatMessageWidget(systemText, partColor);
             }
             break;
         case Command::MSG:
             if (msg.params.size() >= 2) {
                 QString pseudo = QString::fromStdString(msg.params[0]);
-                QString message = QString::fromStdString(msg.params[1]).toHtmlEscaped(); // Échapper le HTML du message utilisateur
-                html = QString("<p><b style='color:%1;'>%2</b>: <span style='color:%3;'>%4</span></p>")
-                           .arg(pseudoColor, pseudo, chatColor, message);
+                QString message = QString::fromStdString(msg.params[1]); // Pas besoin de .toHtmlEscaped() ici
+                QString timestamp = QDateTime::currentDateTime().toString("HH:mm");
+                messageWidget = new ChatMessageWidget(pseudo, message, timestamp);
             }
             break;
         default:
-            break;
+            return; // Ne rien faire si on ne reconnaît pas la commande
     }
 
-    if (!html.isEmpty()) {
-        chatArea->append(html);
+    if (messageWidget) {
+        QStandardItem* item = new QStandardItem();
+        // C'est ici que la magie opère : on définit la taille de l'item
+        // et Qt utilisera notre widget pour le dessiner !
+        item->setSizeHint(messageWidget->sizeHint()); 
+        
+        chatModel->appendRow(item);
+        
+        // On attache notre widget personnalisé à l'index de l'item
+        QModelIndex index = chatModel->indexFromItem(item);
+        chatView->setIndexWidget(index, messageWidget);
+
+        // Scroll automatique vers le bas
+        chatView->scrollToBottom();
     }
 }
 
+
 void MainWindow::onConnectionStatusChanged(bool isConnected, const QString& message) {
-    chatArea->append(QString("--- %1 ---").arg(message));
+    // Au lieu d'afficher dans la zone de chat principale, on pourrait avoir
+    // une barre de statut en bas. Pour l'instant, on le met comme message système.
+    ChatMessageWidget* statusWidget = new ChatMessageWidget(message, QColor("#95a5a6"));
+    
+    QStandardItem* item = new QStandardItem();
+    item->setSizeHint(statusWidget->sizeHint());
+    chatModel->appendRow(item);
+    QModelIndex index = chatModel->indexFromItem(item);
+    chatView->setIndexWidget(index, statusWidget);
+    
     messageInput->setEnabled(isConnected);
     sendButton->setEnabled(isConnected);
 }
@@ -141,7 +185,11 @@ void MainWindow::onConnectionStatusChanged(bool isConnected, const QString& mess
 void MainWindow::onUserListUpdated(const QStringList& users) {
     userListWidget->clear();
     userListWidget->addItems(users);
+    
+    // Mettre à jour le compteur !
+    userCountLabel->setText(QString("En ligne - %1").arg(users.count()));
 }
+
 
 MainWindow::~MainWindow() {
     if(clientThread && clientThread->isRunning()) {

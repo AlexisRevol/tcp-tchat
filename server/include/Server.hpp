@@ -33,6 +33,7 @@ public:
     Server(int port);
     ~Server();
     bool start();
+    void stop();
 
 private:
     void initializeWinsock(); // Spécifique à Windows
@@ -55,4 +56,7 @@ private:
     std::mutex m_clientsMutex;
     
     MessageHandler m_messageHandler; 
+
+    std::atomic<bool> m_isRunning;
+    std::thread m_acceptThread;
 };
