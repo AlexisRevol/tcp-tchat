@@ -26,7 +26,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential ninja-build libgl1-mesa-dev libxcb-xinerama0 libxkbcommon-x11-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
 
-    # ÉTAPE 2 : Mettre en cache les fichiers Qt pour accélérer les builds futurs
+    # ÉTAPE 2 : Mettre en cache les fichiers Qt
     - name: Cache Qt
       id: cache-qt
       uses: actions/cache@v4
@@ -36,15 +36,21 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-qt-${{ matrix.qt-version }}-
 
-    # ÉTAPE 3 : Installer Qt (seulement si le cache n'a pas été trouvé)
+    # ÉTAPE 3 : Installer Qt
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       if: steps.cache-qt.outputs.cache-hit != 'true'
       with:
         version: ${{ matrix.qt-version }}
+        # --- LA CORRECTION EST ICI ---
+        # Spécifier l'architecture/toolchain pour Windows afin qu'elle corresponde à MinGW.
+        # Pour les autres OS, le défaut est correct.
+        arch: ${{ runner.os == 'Windows' && 'win64_mingw' || '' }}
 
     # ÉTAPE 4 : Configurer CMake
+    # Sur Windows, s'assurer que le shell est correct pour MinGW.
     - name: Configure CMake
+      shell: msys2 {0}
       run: >
         cmake -B build
         -D CMAKE_BUILD_TYPE=Release
@@ -54,8 +60,10 @@ jobs:
 
     # ÉTAPE 5 : Compiler le projet
     - name: Build project
+      shell: msys2 {0}
       run: cmake --build build --parallel
 
     # ÉTAPE 6 : Lancer les tests
     - name: Run tests
+      shell: msys2 {0}
       run: ctest --test-dir build --output-on-failure
