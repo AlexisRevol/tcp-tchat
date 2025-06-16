@@ -1,4 +1,4 @@
-name: C++ CI
+name: C++ Build and Test
 
 on:
   push:
@@ -9,25 +9,55 @@ on:
 jobs:
   build-and-test:
     strategy:
+      # Exécuter les builds en parallèle pour chaque OS
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        qt-version: ['6.7.1']
 
-    # Le type de machine virtuelle à utiliser basé sur la matrice ci-dessus
     runs-on: ${{ matrix.os }}
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install dependencies (Linux)
+    # Installer les dépendances spécifiques à l'OS
+    - name: Install Linux dependencies
       if: runner.os == 'Linux'
-      run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential ninja-build libgl1-mesa-dev libxcb-xinerama0 libxkbcommon-x11-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
 
+    # Mettre en cache les fichiers Qt pour accélérer les builds futurs
+    - name: Cache Qt
+      id: cache-qt
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/qt-installer
+        key: ${{ runner.os }}-qt-${{ matrix.qt-version }}-${{ hashFiles('**/CMakeLists.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-qt-${{ matrix.qt-version }}-
+
+    # Installer Qt (seulement si le cache n'a pas été trouvé)
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      if: steps.cache-qt.outputs.cache-hit != 'true'
+      with:
+        version: ${{ matrix.qt-version }}
+        modules: 'qtwidgets'
+
+    # Configurer CMake
     - name: Configure CMake
-      run: cmake -B build
+      run: >
+        cmake -B build
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }}
+        -D BUILD_TESTING=ON
+        -G Ninja
 
+    # Compiler le projet
     - name: Build project
-      run: cmake --build build --config Debug
+      run: cmake --build build --parallel
 
+    # Lancer les tests
     - name: Run tests
-      run: ctest --test-dir build -C Debug --output-on-failure
+      run: ctest --test-dir build --output-on-failure
