@@ -3,9 +3,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QLabel>
-#include <QDateTime>
 #include <QPainter>
-#include <QFont>
 
 // Constructeur pour un message d'utilisateur normal
 ChatMessageWidget::ChatMessageWidget(const QString& author, const QString& text, const QString& timestamp, bool isOwnMessage, QWidget* parent)
@@ -21,24 +19,24 @@ ChatMessageWidget::ChatMessageWidget(const QString& systemMessage, QColor color,
 
 
 void ChatMessageWidget::setupUi(const QString& author, const QString& text, const QString& timestamp, bool isOwnMessage) {
-    // --- 1. Création de l'Avatar (rond avec initiale) ---
-    avatarLabel = new QLabel();
-    avatarLabel->setFixedSize(40, 40);
+    // 1. Création de l'Avatar (rond avec initiale)
+    m_avatarLabel = new QLabel();
+    m_avatarLabel->setFixedSize(40, 40);
 
     QPixmap avatarPixmap(40, 40);
-    avatarPixmap.fill(Qt::transparent); // Important pour un fond transparent
+    avatarPixmap.fill(QColor("#36393f"));
 
     QPainter painter(&avatarPixmap);
     painter.setRenderHint(QPainter::Antialiasing); // Pour des bords de cercle lisses
 
-    // Génère une couleur de fond unique basée sur le pseudo
+    // Génère une couleur de fond unique basée sur le hachage du pseudo
     uint hash = static_cast<uint>(qHash(author));
     QColor avatarColor = QColor::fromHsv(hash % 360, 180, 200);
     painter.setBrush(avatarColor);
-    painter.setPen(Qt::NoPen); // Pas de bordure pour le cercle
+    painter.setPen(Qt::NoPen);
     painter.drawEllipse(0, 0, 40, 40);
 
-    // Dessine l'initiale du pseudo au centre
+    // Dessine l'initiale du pseudo au centre de l'avatar
     painter.setPen(Qt::white);
     QFont font = painter.font();
     font.setPixelSize(20);
@@ -52,66 +50,61 @@ void ChatMessageWidget::setupUi(const QString& author, const QString& text, cons
     }
     painter.drawText(avatarPixmap.rect(), Qt::AlignCenter, initial);
     
-    avatarLabel->setPixmap(avatarPixmap);
+    m_avatarLabel->setPixmap(avatarPixmap);
 
 
-    // --- 2. Création de la "bulle" de message ---
-    // C'est un widget conteneur qui aura un fond coloré grâce au QSS
+    // 2. Création de la "bulle" de message
     QWidget* bubbleWidget = new QWidget();
-    // C'est ici la clé : on donne un nom différent pour pouvoir les styler différemment
+    // L'identifiant d'objet permet un stylage QSS différent pour ses propres messages et ceux des autres.
     bubbleWidget->setObjectName(isOwnMessage ? "bubbleOwn" : "bubbleOther");
 
+    // 3. Création des labels de contenu (pseudo, message, heure)
+    m_authorLabel = new QLabel(author);
+    m_authorLabel->setObjectName("authorLabel");
+    m_authorLabel->setStyleSheet("font-weight: bold; color: " + avatarColor.name() + ";");
 
-    // --- 3. Création des labels de contenu (pseudo, message, heure) ---
-    authorLabel = new QLabel(author);
-    authorLabel->setObjectName("authorLabel"); // Pour le style QSS (couleur, etc.)
-    authorLabel->setStyleSheet("font-weight: bold;"); // On peut garder un style de base ici
+    m_timestampLabel = new QLabel(timestamp);
+    m_timestampLabel->setObjectName("timestampLabel");
 
-    timestampLabel = new QLabel(timestamp);
-    timestampLabel->setObjectName("timestampLabel");
-
-    textLabel = new QLabel(text);
-    textLabel->setWordWrap(true); // Le texte va à la ligne automatiquement
-    textLabel->setObjectName("textLabel");
+    m_textLabel = new QLabel(text);
+    m_textLabel->setWordWrap(true);
+    m_textLabel->setObjectName("textLabel");
     
-
-    // --- 4. Organisation du contenu DANS la bulle ---
-    QHBoxLayout* topLayout = new QHBoxLayout(); // Pour [Pseudo] ... [Heure]
-    topLayout->addWidget(authorLabel);
+    // 4. Organisation du contenu DANS la bulle
+    QHBoxLayout* topLayout = new QHBoxLayout(); // [Pseudo] ... [Heure]
+    topLayout->addWidget(m_authorLabel);
     topLayout->addStretch();
-    topLayout->addWidget(timestampLabel);
+    topLayout->addWidget(m_timestampLabel);
 
-    QVBoxLayout* bubbleLayout = new QVBoxLayout(bubbleWidget); // Layout principal de la bulle
-    bubbleLayout->setContentsMargins(12, 8, 12, 8); // Padding intérieur à la bulle
+    QVBoxLayout* bubbleLayout = new QVBoxLayout(bubbleWidget);
+    bubbleLayout->setContentsMargins(12, 8, 12, 8);
     bubbleLayout->setSpacing(4);
     bubbleLayout->addLayout(topLayout);
-    bubbleLayout->addWidget(textLabel);
+    bubbleLayout->addWidget(m_textLabel);
     
-
-    // --- 5. Organisation générale du widget (Avatar + Bulle) ---
-    QHBoxLayout* mainLayout = new QHBoxLayout(this); // Layout de ce ChatMessageWidget
+    // 5. Organisation générale du widget (Avatar + Bulle)
+    QHBoxLayout* mainLayout = new QHBoxLayout(this);
     mainLayout->setContentsMargins(10, 5, 10, 5);
     mainLayout->setSpacing(10);
 
     if (isOwnMessage) {
-        // Si c'est notre message : [Espace] [Bulle]
+        // [Espace] [Bulle]
         mainLayout->addStretch();
         mainLayout->addWidget(bubbleWidget);
-        // On n'affiche pas notre propre avatar, comme dans la plupart des messageries
     } else {
-        // Si c'est un message d'un autre : [Avatar] [Bulle] [Espace]
-        mainLayout->addWidget(avatarLabel, 0, Qt::AlignTop); // Aligne l'avatar en haut
+        // [Avatar] [Bulle] [Espace]
+        mainLayout->addWidget(m_avatarLabel, 0, Qt::AlignTop); // Aligne l'avatar en haut
         mainLayout->addWidget(bubbleWidget);
         mainLayout->addStretch();
     }
 }
 
 void ChatMessageWidget::setupSystemUi(const QString& systemMessage, QColor color) {
-    textLabel = new QLabel(QString("<i>%1</i>").arg(systemMessage));
-    textLabel->setAlignment(Qt::AlignCenter);
-    textLabel->setStyleSheet(QString("color: %1;").arg(color.name()));
+    m_textLabel = new QLabel(QString("<i>%1</i>").arg(systemMessage));
+    m_textLabel->setAlignment(Qt::AlignCenter);
+    m_textLabel->setStyleSheet(QString("color: %1;").arg(color.name()));
 
     QHBoxLayout* mainLayout = new QHBoxLayout(this);
     mainLayout->setContentsMargins(10, 5, 10, 5);
-    mainLayout->addWidget(textLabel);
+    mainLayout->addWidget(m_textLabel);
 }

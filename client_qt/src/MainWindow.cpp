@@ -1,5 +1,8 @@
 // src/MainWindow.cpp
 #include "MainWindow.hpp"
+#include "Client.hpp"
+#include "ChatMessageWidget.hpp"
+
 #include <QLineEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
@@ -7,204 +10,205 @@
 #include <QWidget>
 #include <QListWidget>
 #include <QSplitter>
-#include <QStandardItemModel> 
-#include <QListView>           
-#include <QLabel>            
-#include <QDateTime>   
-#include <QPainter>    
-
-#include "Client.hpp"
-#include "ChatMessageWidget.hpp" 
+#include <QStandardItemModel>
+#include <QListView>
+#include <QLabel>
+#include <QDateTime>
+#include <QPainter>
 #include <QThread>
-#include <QScrollBar>  
+#include <QScrollBar>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
-    clientThread = new QThread(this);
+    // Le client réseau doit s'exécuter dans un thread séparé
+    // pour ne pas bloquer l'interface utilisateur.
+    m_clientThread = new QThread(this);
     m_client = new Client();
+    m_client->moveToThread(m_clientThread);
 
-    m_client->moveToThread(clientThread);
-
-    // Création de l'icône de statut "en ligne"
+    // Création programmatique de l'icône "en ligne"
     QPixmap pixmap(16, 16);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setBrush(QColor("#2ecc71")); // Vert "émeraude"
+    painter.setBrush(QColor("#2ecc71")); // Vert
     painter.setPen(Qt::NoPen);
-    painter.drawEllipse(3, 3, 10, 10); // Un petit cercle au centre du pixmap
+    painter.drawEllipse(3, 3, 10, 10);
     m_onlineIcon = QIcon(pixmap);
 
+    // Configuration de l'UI et des connexions
     setupUI();
-
-    updateConnectionStatus(false, "Connexion en cours...");
     setupConnections();
+    
+    updateConnectionStatus(false, "Connexion...");
 
-    clientThread->start();
+    // Démarrage du thread client et demande de connexion initiale
+    m_clientThread->start();
     emit connectToServerRequested("127.0.0.1", 8080);
 }
 
+MainWindow::~MainWindow() {
+    // Procédure de fermeture propre du thread.
+    if(m_clientThread && m_clientThread->isRunning()) {
+        QMetaObject::invokeMethod(m_client, "disconnectFromServer", Qt::QueuedConnection);
+
+        m_clientThread->quit(); 
+
+        // Attente de la fin du thread avec un timeout
+        if (!m_clientThread->wait(3000)) {
+            qWarning("Le thread client n'a pas pu être arrêté proprement. Forçage de la terminaison.");
+            m_clientThread->terminate();
+            m_clientThread->wait();
+        }
+    }
+}
+
+
 void MainWindow::setupUI() {
     setWindowTitle("Modern Tchat");
-    setObjectName("mainWindow"); // Pour le QSS
+    setObjectName("mainWindow"); // ID pour le stylage QSS
 
-    // --- 1. On crée le header ---
     createHeader();
 
-    // --- 2. On crée le reste de l'interface comme avant ---
-    // (chatView, chatModel, userListWidget, etc.)
-    chatView = new QListView(this);
-    chatView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    chatView->setSelectionMode(QAbstractItemView::NoSelection);
-    chatView->setSpacing(5);
-    chatView->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
-    chatView->setObjectName("chatView");
+    // Vue principale pour afficher les messages
+    m_chatView = new QListView(this);
+    m_chatView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_chatView->setSelectionMode(QAbstractItemView::NoSelection);
+    m_chatView->setSpacing(5);
+    m_chatView->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_chatView->setObjectName("chatView");
     
-    chatModel = new QStandardItemModel(this);
-    chatView->setModel(chatModel);
+    m_chatModel = new QStandardItemModel(this);
+    m_chatView->setModel(m_chatModel);
 
-    // Zone des utilisateurs
-    userListWidget = new QListWidget(this);
-    userListWidget->setObjectName("userListWidget");
-    userCountLabel = new QLabel("En ligne - 0", this);
-    userCountLabel->setObjectName("userCountLabel");
-    userCountLabel->setAlignment(Qt::AlignCenter);
+    // Panneau de droite pour la liste des utilisateurs
+    m_userListWidget = new QListWidget(this);
+    m_userListWidget->setObjectName("userListWidget");
+    m_userCountLabel = new QLabel("En ligne - 0", this);
+    m_userCountLabel->setObjectName("userCountLabel");
+    m_userCountLabel->setAlignment(Qt::AlignCenter);
 
     QVBoxLayout* userListLayout = new QVBoxLayout();
-    userListLayout->addWidget(userCountLabel);
-    userListLayout->addWidget(userListWidget);
-    userListLayout->setSpacing(0); // Coller le label et la liste
+    userListLayout->addWidget(m_userCountLabel);
+    userListLayout->addWidget(m_userListWidget);
+    userListLayout->setSpacing(0);
     userListLayout->setContentsMargins(0,0,0,0);
     QWidget* userListContainer = new QWidget();
     userListContainer->setLayout(userListLayout);
     userListContainer->setMinimumWidth(150);
 
-    // Zone de saisie
-    messageInput = new QLineEdit(this);
-    messageInput->setPlaceholderText("Écrivez votre message ici...");
-    messageInput->setObjectName("messageInput");
+    // Zone de saisie des messages en bas
+    m_messageInput = new QLineEdit(this);
+    m_messageInput->setPlaceholderText("Écrivez votre message ici...");
+    m_messageInput->setObjectName("messageInput");
 
-    sendButton = new QPushButton("Envoyer", this);
-    sendButton->setObjectName("sendButton");
+    m_sendButton = new QPushButton("Envoyer", this);
+    m_sendButton->setObjectName("sendButton");
 
-    // Layout de la zone de saisie
     QHBoxLayout* inputLayout = new QHBoxLayout();
-    inputLayout->addWidget(messageInput);
-    inputLayout->addWidget(sendButton);
+    inputLayout->addWidget(m_messageInput);
+    inputLayout->addWidget(m_sendButton);
 
-    // Layout de la zone de chat (vue + saisie)
+    // Conteneur pour la vue du tchat et la zone de saisie
     QVBoxLayout* chatLayout = new QVBoxLayout();
-    chatLayout->addWidget(chatView);
+    chatLayout->addWidget(m_chatView);
     chatLayout->addLayout(inputLayout);
     chatLayout->setContentsMargins(0,0,0,0);
-    chatLayout->setSpacing(5); // Espace entre la liste des messages et la barre de saisie
+    chatLayout->setSpacing(5);
     QWidget* chatWidget = new QWidget();
     chatWidget->setLayout(chatLayout);
     chatWidget->setObjectName("chatWidget");
 
-    // Le Splitter qui sépare les utilisateurs du chat
+    // Séparateur principal entre la liste des utilisateurs et le tchat
     QSplitter* mainSplitter = new QSplitter(Qt::Horizontal, this);
     mainSplitter->addWidget(userListContainer);
     mainSplitter->addWidget(chatWidget);
-    mainSplitter->setStretchFactor(0, 1);
-    mainSplitter->setStretchFactor(1, 4);
-    mainSplitter->handle(1)->setFixedWidth(2); // Un peu plus visible
+    mainSplitter->setStretchFactor(0, 1); // La liste d'utilisateurs prend moins de place
+    mainSplitter->setStretchFactor(1, 4); // La zone de tchat prend plus de place
 
-    // --- 3. On crée le layout final qui combine Header et Splitter ---
+    // Assemblage final de la fenêtre
     QWidget* mainContentWidget = new QWidget();
     QVBoxLayout* mainLayout = new QVBoxLayout(mainContentWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(0); // Pas d'espace entre le header et le contenu
-
-    // On ajoute d'abord le header...
-    mainLayout->addWidget(headerWidget);
-    // ...puis le splitter en dessous.
+    mainLayout->setSpacing(0); // Le header est collé au reste
+    mainLayout->addWidget(m_headerWidget);
     mainLayout->addWidget(mainSplitter);
 
-    // --- 4. Ce nouveau conteneur devient le widget central ---
     setCentralWidget(mainContentWidget);
 }
 
 void MainWindow::createHeader() {
-    headerWidget = new QWidget();
-    headerWidget->setObjectName("headerWidget");
-    headerWidget->setFixedHeight(50); // Hauteur fixe pour le bandeau
+    m_headerWidget = new QWidget();
+    m_headerWidget->setObjectName("headerWidget");
+    m_headerWidget->setFixedHeight(50);
 
-    QHBoxLayout* headerLayout = new QHBoxLayout(headerWidget);
+    QHBoxLayout* headerLayout = new QHBoxLayout(m_headerWidget);
     headerLayout->setContentsMargins(15, 0, 15, 0);
-    headerLayout->setSpacing(10); // Espace entre les éléments du header
+    headerLayout->setSpacing(10);
 
-    // 1. Icône de salon '#'
-    channelIconLabel = new QLabel("#");
-    channelIconLabel->setObjectName("channelIconLabel");
+    // Icône et nom du salon
+    m_channelIconLabel = new QLabel("#");
+    m_channelIconLabel->setObjectName("channelIconLabel");
+    m_serverNameLabel = new QLabel("Tchat Principal");
+    m_serverNameLabel->setObjectName("serverNameLabel");
 
-    // 2. Nom du salon
-    serverNameLabel = new QLabel("Tchat Principal");
-    serverNameLabel->setObjectName("serverNameLabel");
+    // Ligne de séparation et sujet du salon
+    m_separatorLine = new QWidget();
+    m_separatorLine->setFixedWidth(1);
+    m_separatorLine->setObjectName("separatorLine");
+    m_channelTopicLabel = new QLabel("Discussions générales");
+    m_channelTopicLabel->setObjectName("channelTopicLabel");
 
-    // 3. Ligne de séparation verticale
-    separatorLine = new QWidget();
-    separatorLine->setFixedWidth(1);
-    separatorLine->setObjectName("separatorLine");
+    // Indicateurs de statut de connexion (à droite)
+    m_connectionStatusIndicator = new QLabel();
+    m_connectionStatusIndicator->setObjectName("connectionStatusIndicator");
+    m_connectionStatusIndicator->setFixedSize(12, 12);
+    m_connectionStatusLabel = new QLabel("Connexion...");
+    m_connectionStatusLabel->setObjectName("connectionStatusLabel");
 
-    // 4. Sujet du salon (modifiable plus tard)
-    channelTopicLabel = new QLabel("Discussions générales sur la programmation C++ & Qt");
-    channelTopicLabel->setObjectName("channelTopicLabel");
-
-    // 5. Indicateur de statut (le point de couleur)
-    connectionStatusIndicator = new QLabel();
-    connectionStatusIndicator->setObjectName("connectionStatusIndicator");
-    connectionStatusIndicator->setFixedSize(12, 12); // Un petit cercle
-
-    // 6. Texte du statut
-    connectionStatusLabel = new QLabel("Connexion en cours...");
-    connectionStatusLabel->setObjectName("connectionStatusLabel");
-
-
-    // Ajout des widgets au layout
-    headerLayout->addWidget(channelIconLabel);
-    headerLayout->addWidget(serverNameLabel);
-    headerLayout->addWidget(separatorLine);
-    headerLayout->addWidget(channelTopicLabel);
-    headerLayout->addStretch(); // Pousse le statut de connexion tout à droite
-    headerLayout->addWidget(connectionStatusIndicator);
-    headerLayout->addWidget(connectionStatusLabel);
+    // Ajout des widgets au layout du header
+    headerLayout->addWidget(m_channelIconLabel);
+    headerLayout->addWidget(m_serverNameLabel);
+    headerLayout->addWidget(m_separatorLine);
+    headerLayout->addWidget(m_channelTopicLabel);
+    headerLayout->addStretch(); // Pousse les éléments suivants tout à droite
+    headerLayout->addWidget(m_connectionStatusIndicator);
+    headerLayout->addWidget(m_connectionStatusLabel);
 }
 
-
 void MainWindow::setupConnections() {
-    // ... (les connexions existantes restent les mêmes) ...
-    connect(sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
-    connect(messageInput, &QLineEdit::returnPressed, this, &MainWindow::onSendButtonClicked);
+    // Actions de l'utilisateur dans l'UI
+    connect(m_sendButton, &QPushButton::clicked, this, &MainWindow::onSendButtonClicked);
+    connect(m_messageInput, &QLineEdit::returnPressed, this, &MainWindow::onSendButtonClicked);
 
+    // Communication de la MainWindow vers le Client (dans son thread)
     connect(this, &MainWindow::sendMessageRequested, m_client, &Client::sendMsg);
     connect(this, &MainWindow::connectToServerRequested, m_client, &Client::connectToServer);
     
+    // Communication du Client vers la MainWindow (thread-safe)
     connect(m_client, &Client::newMessageReceived, this, &MainWindow::onNewMessageReceived);
     connect(m_client, &Client::connectionStatusChanged, this, &MainWindow::onConnectionStatusChanged);
     connect(m_client, &Client::userListUpdated, this, &MainWindow::onUserListUpdated);
 }
 
 void MainWindow::onSendButtonClicked() {
-    QString message = messageInput->text().trimmed(); // .trimmed() pour enlever les espaces
+    QString message = m_messageInput->text().trimmed();
     if (!message.isEmpty()) {
         emit sendMessageRequested(message.toStdString());
-        messageInput->clear();
+        m_messageInput->clear();
     }
 }
 
-// Slot qui reçoit le message du client et l'ajoute à la vue
 void MainWindow::onNewMessageReceived(const ParsedMessage& msg) {
     addMessage(msg);
 }
 
-// Nouvelle fonction pour ajouter un message à la vue
 void MainWindow::addMessage(const ParsedMessage& msg) {
     QWidget* messageWidget = nullptr;
     
-    // Couleurs définies pour le thème
-    const QColor joinColor = QColor("#2ecc71"); // Vert
-    const QColor partColor = QColor("#e74c3c"); // Rouge
-    const QColor statusColor = QColor("#95a5a6"); // Gris pour le status
+    // Couleurs sémantiques pour les messages système
+    const QColor joinColor = QColor("#2ecc71");   // Vert
+    const QColor partColor = QColor("#e74c3c");   // Rouge
+    const QColor statusColor = QColor("#95a5a6"); // Gris
 
     switch(msg.command) {
         case Command::JOIN:
@@ -224,98 +228,81 @@ void MainWindow::addMessage(const ParsedMessage& msg) {
                 QString pseudo = QString::fromStdString(msg.params[0]);
                 QString message = QString::fromStdString(msg.params[1]);
                 QString timestamp = QDateTime::currentDateTime().toString("HH:mm");
-                bool isOwn = (pseudo == m_myNickname);
+                bool isOwn = (pseudo == m_myNickname); // Détermine si le message est de l'utilisateur local
                 
                 messageWidget = new ChatMessageWidget(pseudo, message, timestamp, isOwn);
             }
             break;
         default:
-            return; // Ne rien faire si on ne reconnaît pas la commande
+            qWarning() << "Commande de message non reconnue reçue.";
+            return;
     }
 
     if (messageWidget) {
         QStandardItem* item = new QStandardItem();
-        // C'est ici que la magie opère : on définit la taille de l'item
-        // et Qt utilisera notre widget pour le dessiner !
+        // Le modèle doit connaître la taille du widget pour que la vue l'affiche correctement.
         item->setSizeHint(messageWidget->sizeHint()); 
         
-        chatModel->appendRow(item);
+        m_chatModel->appendRow(item);
         
-        // On attache notre widget personnalisé à l'index de l'item
-        QModelIndex index = chatModel->indexFromItem(item);
-        chatView->setIndexWidget(index, messageWidget);
+        // On attache notre widget personnalisé à l'index de l'item dans la vue.
+        QModelIndex index = m_chatModel->indexFromItem(item);
+        m_chatView->setIndexWidget(index, messageWidget);
 
-        // Scroll automatique vers le bas
-        chatView->scrollToBottom();
+        // Défilement automatique vers le message le plus récent.
+        m_chatView->scrollToBottom();
     }
 }
 
 
 void MainWindow::onConnectionStatusChanged(bool isConnected, const QString& message) {
-    // La mise à jour du header est maintenant gérée par notre nouvelle fonction
     if (isConnected) {
-        if (m_myNickname.isEmpty()) m_myNickname = "Vous"; // Logique pour le pseudo
+        // Hypothèse simple pour définir le pseudo local.
+        // Dans une vraie application, le serveur devrait confirmer le pseudo.
+        if (m_myNickname.isEmpty()) m_myNickname = "Vous";
         updateConnectionStatus(true, "Connecté");
     } else {
-        // 'message' contient la raison (ex: "Déconnecté du serveur", "Erreur de connexion")
         updateConnectionStatus(false, message);
     }
 
-    // Le reste de la logique reste le même...
+    // Ajoute un message de statut dans la fenêtre de tchat.
     ChatMessageWidget* statusWidget = new ChatMessageWidget(message, QColor("#95a5a6"));
-    
     QStandardItem* item = new QStandardItem();
     item->setSizeHint(statusWidget->sizeHint());
-    chatModel->appendRow(item);
-    QModelIndex index = chatModel->indexFromItem(item);
-    chatView->setIndexWidget(index, statusWidget);
+    m_chatModel->appendRow(item);
+    QModelIndex index = m_chatModel->indexFromItem(item);
+    m_chatView->setIndexWidget(index, statusWidget);
     
-    messageInput->setEnabled(isConnected);
-    sendButton->setEnabled(isConnected);
+    // Active ou désactive la zone de saisie en fonction de l'état de la connexion.
+    m_messageInput->setEnabled(isConnected);
+    m_sendButton->setEnabled(isConnected);
 }
 
 void MainWindow::onUserListUpdated(const QStringList& users) {
-    userListWidget->clear();
+    m_userListWidget->clear();
     for (const QString& user : users) {
         QListWidgetItem* item = new QListWidgetItem(m_onlineIcon, user);
-        userListWidget->addItem(item);
+        m_userListWidget->addItem(item);
     }
     
-    userCountLabel->setText(QString("EN LIGNE — %1").arg(users.count()));
+    m_userCountLabel->setText(QString("EN LIGNE — %1").arg(users.count()));
 }
 
 void MainWindow::updateConnectionStatus(bool isConnected, const QString& statusText) {
-    connectionStatusLabel->setText(statusText);
+    m_connectionStatusLabel->setText(statusText);
 
     QString styleSheet;
     if (isConnected) {
-        // Style pour "Connecté" (vert)
-        styleSheet = "background-color: #2ecc71; border-radius: 6px;"; // Vert + cercle
-        connectionStatusLabel->setStyleSheet("color: #b9bbbe;"); // Couleur de texte normale
+        styleSheet = "background-color: #2ecc71; border-radius: 6px;"; // Vert
+        m_connectionStatusLabel->setStyleSheet("color: #b9bbbe;");
     } else if (statusText.contains("Déconnecté")) {
-        // Style pour "Déconnecté" (rouge)
-        styleSheet = "background-color: #e74c3c; border-radius: 6px;"; // Rouge + cercle
-        connectionStatusLabel->setStyleSheet("color: #e74c3c;"); // Texte en rouge aussi
+        styleSheet = "background-color: #e74c3c; border-radius: 6px;"; // Rouge
+        m_connectionStatusLabel->setStyleSheet("color: #e74c3c;");
     } else {
-        // Style pour "Connexion en cours..." ou "Erreur" (orange/jaune)
-        styleSheet = "background-color: #f1c40f; border-radius: 6px;"; // Jaune/Orange + cercle
-        connectionStatusLabel->setStyleSheet("color: #f1c40f;");
+        styleSheet = "background-color: #f1c40f; border-radius: 6px;"; // Jaune/Orange
+        m_connectionStatusLabel->setStyleSheet("color: #f1c40f;");
     }
     
-    connectionStatusIndicator->setStyleSheet(styleSheet);
-    connectionStatusIndicator->setToolTip(statusText); // Infobulle au survol du point
-}
-
-MainWindow::~MainWindow() {
-    if(clientThread && clientThread->isRunning()) {
-        QMetaObject::invokeMethod(m_client, "disconnectFromServer", Qt::QueuedConnection);
-
-        clientThread->quit();
-
-        if (!clientThread->wait(3000)) {
-            qWarning("Thread did not quit in time, terminating.");
-            clientThread->terminate();
-            clientThread->wait();
-        }
-    }
+    m_connectionStatusIndicator->setStyleSheet(styleSheet);
+    m_connectionStatusIndicator->setToolTip(statusText);
 }

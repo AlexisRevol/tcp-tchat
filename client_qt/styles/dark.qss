@@ -48,7 +48,7 @@ QWidget {
 
 /* Zone de chat (la liste des messages) */
 #chatView {
-    background-color: #36393f; /* Fond plus clair type Discord */
+    background-color: #36393f !important; /* Fond plus clair type Discord */
     border: none;
 }
 
