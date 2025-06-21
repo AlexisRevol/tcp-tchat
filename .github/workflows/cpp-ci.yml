@@ -26,47 +26,45 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential ninja-build libgl1-mesa-dev libxcb-xinerama0 libxkbcommon-x11-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
 
-    # --- CORRECTION PRINCIPALE CI-DESSOUS ---
-    
     # ÉTAPE 2 : Mettre en cache les fichiers Qt
     - name: Cache Qt
       id: cache-qt
       uses: actions/cache@v4
       with:
-        # On définit un chemin explicite et statique pour le cache.
-        # Ce même chemin sera utilisé pour l'installation.
         path: ${{ runner.temp }}/qt-cache
         key: ${{ runner.os }}-qt-${{ matrix.qt-version }}
-        restore-keys: |
-          ${{ runner.os }}-qt-
 
     # ÉTAPE 3 : Installer Qt
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
-      # On ne lance l'installation que si le cache n'a pas été restauré
-      if: steps.cache-qt.outputs.cache-hit != 'true'
       with:
         version: ${{ matrix.qt-version }}
         arch: ${{ runner.os == 'Windows' && 'win64_mingw' || '' }}
-        # On dit à l'action d'installer Qt dans le même répertoire que celui utilisé pour le cache.
         dir: ${{ runner.temp }}/qt-cache
+        # On ajoute "cache: 'true'" pour une meilleure intégration avec l'étape de cache
+        cache: 'true'
+        cache-key-prefix: ${{ runner.os }}-qt-${{ matrix.qt-version }}
+
+    # --- VÉRIFIEZ ATTENTIVEMENT CETTE PARTIE ---
+
+    # ÉTAPES DE BUILD POUR LINUX / MACOS
+    - name: Configure, Build and Test (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        cmake -B build \
+          -D CMAKE_BUILD_TYPE=Release \
+          -D CMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }} \
+          -D BUILD_TESTING=ON \
+          -G Ninja
         
-    # Le reste du workflow est identique et fonctionnera, car `install-qt-action`
-    # définira correctement la variable `QT_ROOT_DIR` même avec un répertoire personnalisé.
+        cmake --build build --parallel
+        
+        ctest --test-dir build --output-on-failure
 
-    # ÉTAPE 4 : Configurer CMake (pour Linux et macOS)
-    - name: Configure CMake (Linux/macOS)
-      if: runner.os != 'Windows'
-      run: |
-        cmake -B build \
-          -D CMAKE_BUILD_TYPE=Release \
-          -D CMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }} \
-          -D BUILD_TESTING=ON \
-          -G Ninja
-
-    # ÉTAPE 4 : Configurer CMake (pour Windows avec le shell msys2)
-    - name: Configure CMake (Windows)
+    # ÉTAPES DE BUILD POUR WINDOWS
+    - name: Configure, Build and Test (Windows)
       if: runner.os == 'Windows'
+      # Cette ligne est CRUCIALE pour Windows
       shell: msys2 {0}
       run: |
         cmake -B build \
@@ -74,25 +72,7 @@ jobs:
           -D CMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }} \
           -D BUILD_TESTING=ON \
           -G Ninja
+        
+        cmake --build build --parallel
 
-    # ÉTAPE 5 : Compiler le projet (pour Linux et macOS)
-    - name: Build project (Linux/macOS)
-      if: runner.os != 'Windows'
-      run: cmake --build build --parallel
-
-    # ÉTAPE 5 : Compiler le projet (pour Windows avec le shell msys2)
-    - name: Build project (Windows)
-      if: runner.os == 'Windows'
-      shell: msys2 {0}
-      run: cmake --build build --parallel
-
-    # ÉTAPE 6 : Lancer les tests (pour Linux et macOS)
-    - name: Run tests (Linux/macOS)
-      if: runner.os != 'Windows'
-      run: ctest --test-dir build --output-on-failure
-      
-    # ÉTAPE 6 : Lancer les tests (pour Windows avec le shell msys2)
-    - name: Run tests (Windows)
-      if: runner.os == 'Windows'
-      shell: msys2 {0}
-      run: ctest --test-dir build --output-on-failure
+        ctest --test-dir build --output-on-failure
