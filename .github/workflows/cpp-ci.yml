@@ -39,7 +39,7 @@ jobs:
         arch: ${{ runner.os == 'Windows' && 'win64_mingw' || '' }}
         dir: ${{ runner.temp }}/qt-cache
 
-    # --- ÉTAPE DE DÉBOGAGE (pour voir l'environnement si ça échoue) ---
+    # --- ÉTAPE DE DÉBOGAGE
     - name: Display Environment (Windows)
       if: runner.os == 'Windows'
       shell: bash
@@ -55,7 +55,7 @@ jobs:
         which ninja || echo "ninja not found"
         which cmake || echo "cmake not found"
 
-    # ÉTAPES DE BUILD POUR LINUX ET MACOS (inchangé)
+    # ÉTAPES DE BUILD POUR LINUX ET MACOS
     - name: Configure, Build and Test (Unix)
       if: runner.os != 'Windows'
       shell: bash
@@ -71,10 +71,10 @@ jobs:
         
         ctest --test-dir build --output-on-failure
 
-    # --- CORRECTION FINALE POUR WINDOWS ---
+    # --- WINDOWS ---
     - name: Configure, Build and Test (Windows)
       if: runner.os == 'Windows'
-      # On utilise bash, qui est standard, au lieu de msys2 qui cause problème.
+      # bash qui est standard au lieu de msys2
       shell: bash
       run: |
         set -e
