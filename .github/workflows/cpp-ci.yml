@@ -26,27 +26,34 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential ninja-build libgl1-mesa-dev libxcb-xinerama0 libxkbcommon-x11-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
 
-    # ÉTAPE 2 : Mettre en cache les fichiers Qt (inchangé)
+    # --- CORRECTION PRINCIPALE CI-DESSOUS ---
+    
+    # ÉTAPE 2 : Mettre en cache les fichiers Qt
     - name: Cache Qt
       id: cache-qt
       uses: actions/cache@v4
       with:
-        path: ${{ env.QT_INSTALL_DIR }} # Utiliser la variable d'environnement de l'action pour plus de robustesse
+        # On définit un chemin explicite et statique pour le cache.
+        # Ce même chemin sera utilisé pour l'installation.
+        path: ${{ runner.temp }}/qt-cache
         key: ${{ runner.os }}-qt-${{ matrix.qt-version }}
         restore-keys: |
           ${{ runner.os }}-qt-
 
-    # ÉTAPE 3 : Installer Qt (Votre correction pour l'architecture Windows est bonne !)
+    # ÉTAPE 3 : Installer Qt
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
+      # On ne lance l'installation que si le cache n'a pas été restauré
+      if: steps.cache-qt.outputs.cache-hit != 'true'
       with:
         version: ${{ matrix.qt-version }}
-        # Spécifie l'architecture pour Windows (MinGW)
         arch: ${{ runner.os == 'Windows' && 'win64_mingw' || '' }}
+        # On dit à l'action d'installer Qt dans le même répertoire que celui utilisé pour le cache.
+        dir: ${{ runner.temp }}/qt-cache
+        
+    # Le reste du workflow est identique et fonctionnera, car `install-qt-action`
+    # définira correctement la variable `QT_ROOT_DIR` même avec un répertoire personnalisé.
 
-    # --- CORRECTION PRINCIPALE CI-DESSOUS ---
-    # Nous créons des étapes distinctes pour Windows et pour les autres OS (Linux/macOS)
-    
     # ÉTAPE 4 : Configurer CMake (pour Linux et macOS)
     - name: Configure CMake (Linux/macOS)
       if: runner.os != 'Windows'
