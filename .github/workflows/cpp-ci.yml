@@ -19,14 +19,15 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # ÉTAPE 1 : Installer les dépendances spécifiques à l'OS
+    # ÉTAPE 1 : Installer les dépendances système (pour Linux)
     - name: Install Linux dependencies
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential ninja-build libgl1-mesa-dev libxcb-xinerama0 libxkbcommon-x11-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
 
-    # ÉTAPE 2 : Mettre en cache les fichiers Qt
+    # ÉTAPE 2 : Mettre en cache les fichiers Qt téléchargés
+    # On utilise l'action de cache officielle. Elle ne fait que mettre/récupérer des fichiers.
     - name: Cache Qt
       id: cache-qt
       uses: actions/cache@v4
@@ -34,23 +35,25 @@ jobs:
         path: ${{ runner.temp }}/qt-cache
         key: ${{ runner.os }}-qt-${{ matrix.qt-version }}
 
-    # ÉTAPE 3 : Installer Qt
+    # ÉTAPE 3 : Installer et configurer l'environnement Qt
+    # Cette étape s'exécute TOUJOURS. C'est crucial.
+    # L'action est assez intelligente pour ne pas re-télécharger si les fichiers sont déjà là (grâce au cache).
+    # Mais surtout, elle exécutera TOUJOURS sa logique de configuration d'environnement.
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
         version: ${{ matrix.qt-version }}
+        # Spécifie l'architecture MinGW pour Windows
         arch: ${{ runner.os == 'Windows' && 'win64_mingw' || '' }}
+        # On lui dit où chercher/placer les fichiers Qt
         dir: ${{ runner.temp }}/qt-cache
-        # On ajoute "cache: 'true'" pour une meilleure intégration avec l'étape de cache
-        cache: 'true'
-        cache-key-prefix: ${{ runner.os }}-qt-${{ matrix.qt-version }}
 
-    # --- VÉRIFIEZ ATTENTIVEMENT CETTE PARTIE ---
-
-    # ÉTAPES DE BUILD POUR LINUX / MACOS
+    # ÉTAPE 4 : Configurer, Compiler et Tester (pour Linux et macOS)
     - name: Configure, Build and Test (Unix)
       if: runner.os != 'Windows'
+      shell: bash
       run: |
+        set -e # Arrête le script à la première erreur
         cmake -B build \
           -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }} \
@@ -61,12 +64,13 @@ jobs:
         
         ctest --test-dir build --output-on-failure
 
-    # ÉTAPES DE BUILD POUR WINDOWS
+    # ÉTAPE 5 : Configurer, Compiler et Tester (pour Windows)
     - name: Configure, Build and Test (Windows)
       if: runner.os == 'Windows'
-      # Cette ligne est CRUCIALE pour Windows
+      # Cette directive est maintenant garantie de fonctionner car l'étape "Install Qt" a toujours lieu
       shell: msys2 {0}
       run: |
+        set -e # Arrête le script à la première erreur
         cmake -B build \
           -D CMAKE_BUILD_TYPE=Release \
           -D CMAKE_PREFIX_PATH=${{ env.QT_ROOT_DIR }} \
@@ -74,5 +78,5 @@ jobs:
           -G Ninja
         
         cmake --build build --parallel
-
+        
         ctest --test-dir build --output-on-failure
