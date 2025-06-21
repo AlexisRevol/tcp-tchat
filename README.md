@@ -17,25 +17,10 @@ Tchat client-serveur multi-threadé développé en C++17, utilisant les sockets 
 
 ---
 
-## Table des matières
-
-- [Fonctionnalités](#fonctionnalités)
-- [Structure du Projet](#structure-du-projet)
-- [Prérequis](#prérequis)
-- [Instructions de Compilation](#instructions-de-compilation)
-- [Utilisation](#utilisation)
-- [Lancer les Tests](#lancer-les-tests)
-- [Choix Techniques et Architecture](#choix-techniques-et-architecture)
-- [Améliorations Possibles](#améliorations-possibles)
-- [Licence](#licence)
-
 ## Fonctionnalités
 
--   **Architecture Client-Serveur** : Un serveur central robuste et plusieurs clients pouvant se connecter simultanément.
--   **Communication TCP** : Communication fiable et ordonnée via les sockets TCP.
--   **Serveur Multi-threadé** : Le serveur gère chaque client dans un thread dédié pour une performance et une réactivité maximales.
--   **Client Non-bloquant** : La logique réseau du client s'exécute dans un thread séparé pour garantir une interface utilisateur toujours fluide.
--   **Multi-plateforme** : Le code est écrit pour être compatible avec Windows (via Winsock2) et les systèmes POSIX (Linux, macOS).
+-   **Architecture Client-Serveur** : Un serveur central et plusieurs clients pouvant se connecter simultanément.
+-   **Serveur Multi-threadé** : Le serveur gère chaque client dans un thread dédié
 -   **Deux types de clients** :
     1.  Un **client graphique** moderne et intuitif développé avec **Qt6**.
     2.  Un **client console** léger pour le débogage ou une utilisation en terminal.
@@ -44,11 +29,10 @@ Tchat client-serveur multi-threadé développé en C++17, utilisant les sockets 
     -   Diffusion des messages à tous les participants.
     -   Affichage en temps réel de la liste des utilisateurs connectés.
 -   **Code Modulaire** : Logique partagée (protocole, parsing) isolée dans une bibliothèque commune pour éviter la duplication de code.
--   **Tests Unitaires** : Infrastructure de tests en place avec le framework **Catch2**.
 
 ## Prérequis
 
-Pour compiler et exécuter ce projet, vous aurez besoin de :
+Pour compiler et exécuter ce projet il faut :
 
 -   **CMake** (version 3.12 ou supérieure)
 -   Un **compilateur C++17** (GCC, Clang, MSVC, etc.)
@@ -58,59 +42,53 @@ Pour compiler et exécuter ce projet, vous aurez besoin de :
 
 Le projet utilise CMake, ce qui rend la compilation simple et multi-plateforme.
 
-1.  **Clonez le dépôt :**
+1.  **Cloner le dépôt :**
     ```bash
-    git clone https://votre-lien-vers-le-depot.git
-    cd TCP-Tchat
+    git clone https://github.com/AlexisRevol/tcp-tchat
+    cd tcp-tchat
     ```
 
-2.  **Configurez le projet avec CMake :**
-    Il est recommandé de faire une compilation "out-of-source" en créant un répertoire `build`.
+2.  **Configurer le projet avec CMake :**
+    Faire une compilation "out-of-source" en créant un répertoire `build`.
     ```bash
     cmake -B build
     ```
-    *Cette commande crée un répertoire `build` et y génère les fichiers de projet (Makefiles, solution Visual Studio, etc.).*
 
-3.  **Compilez le projet :**
+3.  **Compiler le projet :**
     ```bash
     cmake --build build
     ```
-    *Cette commande lance la compilation de toutes les cibles (serveur, clients, tests). Pour accélérer, vous pouvez utiliser `cmake --build build -j N` où N est le nombre de cœurs de votre processeur.*
 
-Les exécutables seront générés dans le répertoire `build/` (ou un sous-dossier comme `build/Debug/` sur Windows).
+Les exécutables seront générés dans le répertoire `build/` (ou un sous-dossier `build/Debug/` sur Windows).
 
 ## Utilisation
 
-Après la compilation, vous obtiendrez trois exécutables principaux.
+Après la compilation, on obtient 3 exécutables principaux.
 
 1.  **Lancer le serveur :**
     Le serveur doit être lancé en premier. Il se mettra en écoute sur le port 8080.
     ```bash
-    # Depuis la racine du projet
     ./build/server/server
     ```
     Le terminal affichera "Serveur en ecoute..."
 
 2.  **Lancer le client graphique Qt :**
-    Vous pouvez lancer plusieurs instances de ce client.
+   Lancer plusieurs instances de ce client UI.
     ```bash
-    # Depuis la racine du projet
     ./build/client_qt/client_qt
     ```
 
 3.  **Lancer le client console :**
-    Utile pour des tests rapides. Vous pouvez également en lancer plusieurs instances dans des terminaux différents.
+    Utile pour des tests rapides.
     ```bash
-    # Depuis la racine du projet
     ./build/client/client
     ```
 
 ## Lancer les Tests
 
-Le projet est configuré pour utiliser CTest, l'outil de test de CMake. Pour lancer les tests unitaires :
+Pour lancer les tests unitaires :
 
 ```bash
-# Assurez-vous d'être dans le répertoire de compilation
 cd build
 ctest
 ```
